@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#0B1F4F"/>
+  <text x="16" y="22" font-family="Poppins, Georgia, sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="white">A</text>
+  <rect x="20" y="5" width="2.5" height="4.5" rx="0.8" fill="#C5894A" transform="rotate(20 21.25 7.25)"/>
+</svg>
