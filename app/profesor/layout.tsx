@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { DashboardSidebar, SidebarItem } from "@/components/dashboard/sidebar";
+import { getCurrentUser } from "@/lib/supabase/user";
 import { LayoutDashboard, Users, ClipboardCheck, FileText, BarChart3 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -15,10 +17,15 @@ const items: SidebarItem[] = [
   { label: "Estadísticas", href: "/profesor/estadisticas", icon: <BarChart3 /> },
 ];
 
-export default function ProfesorLayout({ children }: { children: React.ReactNode }) {
+export default async function ProfesorLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const displayName = user.profile.full_name || user.email;
+
   return (
     <div className="flex bg-paper min-h-screen">
-      <DashboardSidebar role="Profesor" userName="Helen Watson" items={items} />
+      <DashboardSidebar role="Profesor" userName={displayName} items={items} />
       <main className="flex-1 min-w-0">{children}</main>
     </div>
   );

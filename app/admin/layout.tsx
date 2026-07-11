@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { DashboardSidebar, SidebarItem } from "@/components/dashboard/sidebar";
+import { getCurrentUser } from "@/lib/supabase/user";
 import {
   LayoutDashboard,
   Building2,
@@ -27,10 +29,15 @@ const items: SidebarItem[] = [
   { label: "Métricas", href: "/admin/metricas", icon: <BarChart3 /> },
 ];
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const displayName = user.profile.full_name || user.email;
+
   return (
     <div className="flex bg-paper min-h-screen">
-      <DashboardSidebar role="Superadmin" userName="Equipo Acertlio" items={items} />
+      <DashboardSidebar role="Superadmin" userName={displayName} items={items} />
       <main className="flex-1 min-w-0">{children}</main>
     </div>
   );

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/shared/logo";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { cn } from "@/lib/utils";
-import { LogOut } from "lucide-react";
 
 export interface SidebarItem {
   label: string;
@@ -55,13 +55,7 @@ export function DashboardSidebar({ role, userName, items }: DashboardSidebarProp
       </nav>
 
       <div className="px-3 py-4 border-t border-rule">
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 px-2.5 py-2 rounded text-sm text-muted hover:bg-paper hover:text-ink"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>Salir</span>
-        </Link>
+        <LogoutButton />
       </div>
     </aside>
   );

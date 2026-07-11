@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Logo } from "@/components/shared/logo";
-import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { LoginForm } from "@/components/auth/login-form";
+import { getCurrentUser, dashboardPathForRole } from "@/lib/supabase/user";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión",
@@ -11,7 +12,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/login" },
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Si ya hay sesión, redirigimos directamente al dashboard.
+  const user = await getCurrentUser();
+  if (user) {
+    redirect(dashboardPathForRole(user.profile.role));
+  }
+
   return (
     <main className="min-h-screen bg-paper flex">
       {/* Left: form */}
@@ -29,25 +36,7 @@ export default function LoginPage() {
               Accede al panel de tu academia, profesor o alumno.
             </p>
 
-            <form className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="tu@academia.com" autoComplete="email" />
-              </div>
-              <div>
-                <div className="flex justify-between items-baseline">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Link href="#" className="text-xs text-navy hover:underline">
-                    ¿La olvidaste?
-                  </Link>
-                </div>
-                <Input id="password" type="password" autoComplete="current-password" />
-              </div>
-
-              <Button type="button" className="w-full" size="lg">
-                Entrar
-              </Button>
-            </form>
+            <LoginForm />
 
             <p className="mt-8 text-sm text-muted text-center">
               ¿Aún no tienes cuenta?{" "}
@@ -55,33 +44,27 @@ export default function LoginPage() {
                 Ver planes para academias
               </Link>
             </p>
-
-            <div className="mt-12 rounded border border-rule bg-white p-4 text-xs text-muted">
-              <p className="font-medium text-ink mb-2">Vista previa</p>
-              <p className="mb-3">Este es el inicio de sesión visual. Para explorar los paneles sin login todavía:</p>
-              <div className="flex flex-wrap gap-2">
-                <Link href="/academia" className="text-navy hover:underline">Academia</Link>
-                <span>·</span>
-                <Link href="/profesor" className="text-navy hover:underline">Profesor</Link>
-                <span>·</span>
-                <Link href="/alumno" className="text-navy hover:underline">Alumno</Link>
-                <span>·</span>
-                <Link href="/admin" className="text-navy hover:underline">Admin</Link>
-              </div>
-            </div>
           </div>
         </div>
 
-        <p className="text-xs text-muted self-start">© {new Date().getFullYear()} Acertlio</p>
+        <p className="text-xs text-muted self-start">
+          © {new Date().getFullYear()} Acertlio
+        </p>
       </div>
 
-      {/* Right: pattern */}
+      {/* Right: pattern decorativo */}
       <div className="hidden lg:flex flex-1 items-center justify-center bg-navy text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.06]" style={{
-          backgroundImage: "repeating-linear-gradient(45deg, transparent 0 24px, white 24px 25px)"
-        }} />
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(45deg, transparent 0 24px, white 24px 25px)",
+          }}
+        />
         <div className="relative max-w-md px-12">
-          <p className="font-mono text-xs uppercase tracking-wider text-saffron mb-4">Cambridge Computer-Based</p>
+          <p className="font-mono text-xs uppercase tracking-wider text-saffron mb-4">
+            Cambridge Computer-Based
+          </p>
           <p className="font-semibold text-3xl leading-tight tracking-tight">
             «Cuando el alumno se sienta delante del examen real, ya lo ha hecho diez veces.»
           </p>

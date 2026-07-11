@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { DashboardSidebar, SidebarItem } from "@/components/dashboard/sidebar";
+import { getCurrentUser } from "@/lib/supabase/user";
 import {
   LayoutDashboard,
   Ticket,
@@ -25,12 +27,18 @@ const items: SidebarItem[] = [
   { label: "Configuración", href: "/academia/configuracion", icon: <Settings /> },
 ];
 
-export default function AcademiaLayout({ children }: { children: React.ReactNode }) {
+export default async function AcademiaLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  // Cargar el nombre de la academia (respetando RLS)
+  const displayName = user.profile.full_name || user.email;
+
   return (
     <div className="flex bg-paper min-h-screen">
       <DashboardSidebar
         role="Academia"
-        userName="English Studio Madrid"
+        userName={displayName}
         items={items}
       />
       <main className="flex-1 min-w-0">{children}</main>
