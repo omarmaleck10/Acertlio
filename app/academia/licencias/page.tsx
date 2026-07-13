@@ -1,148 +1,175 @@
-import Link from "next/link";
-import { Ticket, ArrowUpRight } from "lucide-react";
+import { Ticket } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/user";
+import { redirect } from "next/navigation";
 import { ReleaseLicenseButton } from "@/components/academia/release-license-button";
 
+interface LicenseWithStudent {
+  id: string;
+  student_id: string | null;
+  assigned_at: string | null;
+  student?: {
+    full_name: string | null;
+    email: string;
+    current_level: string | null;
+  } | null;
+}
+
 export default async function AcademiaLicenciasPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const admin = createAdminClient();
   const supabase = createClient();
 
-  // Traer todas las licencias con datos del alumno (si tiene)
-  const { data: licenses } = await supabase
+  const { data: academy } = await admin
+    .from("academies")
+    .select("total_seats, plan")
+    .eq("id", user.profile.academy_id!)
+    .maybeSingle();
+
+  // Traer licencias activas de esta academia
+  const { data: licensesRaw } = await supabase
     .from("licenses")
-    .select(
-      "id, student_id, assigned_at, is_active, profiles!licenses_student_id_fkey(full_name, email, current_level)"
-    )
+    .select("id, student_id, assigned_at, released_at")
     .eq("is_active", true)
     .order("assigned_at", { ascending: false, nullsFirst: false });
 
-  const total = licenses?.length ?? 0;
-  const assigned = licenses?.filter((l) => l.student_id).length ?? 0;
-  const free = total - assigned;
+  const licenses = licensesRaw ?? [];
+
+  // Traer datos de todos los alumnos asignados en una sola query
+  const studentIds = licenses.map((l) => l.student_id).filter((id): id is string => !!id);
+  const { data: students } = studentIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name, email, current_level")
+        .in("id", studentIds)
+    : { data: [] };
+
+  const studentsById = new Map((students ?? []).map((s) => [s.id, s]));
+
+  const occupied: LicenseWithStudent[] = licenses
+    .filter((l) => l.student_id)
+    .map((l) => ({
+      ...l,
+      student: studentsById.get(l.student_id!) as LicenseWithStudent["student"],
+    }));
+
+  const free = licenses.filter((l) => !l.student_id);
+
+  const total = academy?.total_seats ?? 0;
+  const used = occupied.length;
 
   return (
     <div className="px-8 py-8 max-w-5xl">
       <header className="mb-8">
         <p className="text-xs uppercase tracking-wider text-muted">Licencias</p>
         <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">
-          Plazas concurrentes
+          Plazas de tu academia
         </h1>
         <p className="text-sm text-muted mt-2">
-          Cada plaza concurrente puede tener un alumno activo. Al archivar un
-          alumno la plaza vuelve a estar disponible para otro.
+          Cada licencia es una plaza concurrente. Al archivar un alumno, su plaza
+          vuelve al pool y puedes asignársela a otro.
         </p>
       </header>
 
-      {/* Contador visual */}
-      <div className="mb-6 rounded border border-rule bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Ticket className="h-4 w-4 text-navy" />
-            <span className="text-sm text-ink font-medium">
-              {assigned} de {total} ocupadas
-            </span>
-          </div>
-          <span className="text-xs text-muted">
-            {free} libre{free === 1 ? "" : "s"}
-          </span>
+      {/* Resumen */}
+      <div className="rounded border border-rule bg-white px-6 py-5 mb-6 flex items-center gap-6 flex-wrap">
+        <Ticket className="h-8 w-8 text-navy shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm text-ink font-medium">
+            {used} <span className="text-muted font-normal">de {total} plazas ocupadas</span>
+          </p>
+          <p className="text-xs text-muted mt-1">
+            {free.length} plaza{free.length === 1 ? "" : "s"} libre
+            {free.length === 1 ? "" : "s"} · Plan {academy?.plan}
+          </p>
         </div>
-        {/* Barra de progreso */}
-        <div className="h-2 bg-paper rounded overflow-hidden">
+        {/* Barra visual */}
+        <div className="w-40 h-2 rounded-full bg-rule overflow-hidden">
           <div
             className="h-full bg-navy transition-all"
-            style={{ width: total > 0 ? `${(assigned / total) * 100}%` : "0%" }}
+            style={{ width: `${total > 0 ? (used / total) * 100 : 0}%` }}
           />
         </div>
-        {free === 0 && total > 0 && (
-          <p className="text-xs text-saffron mt-3">
-            No quedan plazas libres. Libera una o{" "}
-            <Link href="/academia/facturacion" className="underline">
-              sube de plan
-            </Link>{" "}
-            para invitar más alumnos.
-          </p>
-        )}
       </div>
 
-      {/* Lista de licencias */}
-      <section className="rounded border border-rule bg-white overflow-hidden">
+      {/* Licencias ocupadas */}
+      <section className="rounded border border-rule bg-white mb-6">
         <header className="px-5 py-3 border-b border-rule">
-          <h2 className="text-sm font-medium text-ink">Detalle</h2>
+          <h2 className="text-sm font-medium text-ink">Ocupadas ({used})</h2>
         </header>
-        {licenses && licenses.length > 0 ? (
+        {occupied.length > 0 ? (
           <ul className="divide-y divide-rule">
-            {licenses.map((license, i) => {
-              const profile = Array.isArray(license.profiles)
-                ? license.profiles[0]
-                : license.profiles;
-              return (
-                <li
-                  key={license.id}
-                  className="px-5 py-3 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-xs font-mono text-muted w-10 tabular-nums">
-                      #{String(i + 1).padStart(3, "0")}
+            {occupied.map((l) => (
+              <li
+                key={l.id}
+                className="px-5 py-3 flex items-center justify-between gap-4 flex-wrap"
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div>
+                    <p className="text-sm text-ink font-medium">
+                      {l.student?.full_name ?? "Alumno sin nombre"}
+                    </p>
+                    <p className="text-xs text-muted font-mono">
+                      {l.student?.email}
+                    </p>
+                  </div>
+                  {l.student?.current_level && (
+                    <span className="text-xs font-mono px-2 py-1 rounded bg-navy-50 text-navy">
+                      {l.student.current_level}
                     </span>
-                    {profile ? (
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-ink font-medium truncate">
-                          {profile.full_name ?? "Sin nombre"}
-                        </p>
-                        <p className="text-xs text-muted font-mono truncate">
-                          {profile.email}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted italic">Libre</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {profile?.current_level && (
-                      <span className="text-xs font-mono px-2 py-1 rounded bg-navy-50 text-navy">
-                        {profile.current_level}
-                      </span>
-                    )}
-                    {license.assigned_at && (
-                      <span className="text-xs text-muted hidden sm:inline">
-                        Desde{" "}
-                        {new Date(license.assigned_at).toLocaleDateString("es-ES")}
-                      </span>
-                    )}
-                    {license.student_id && profile && (
-                      <ReleaseLicenseButton
-                        licenseId={license.id}
-                        studentName={profile.full_name ?? profile.email}
-                      />
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  {l.assigned_at && (
+                    <span className="text-xs text-muted">
+                      Desde{" "}
+                      {new Date(l.assigned_at).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  )}
+                  <ReleaseLicenseButton
+                    licenseId={l.id}
+                    studentName={l.student?.full_name ?? "este alumno"}
+                  />
+                </div>
+              </li>
+            ))}
           </ul>
         ) : (
-          <p className="px-5 py-10 text-sm text-muted text-center">
-            No hay licencias activas.
+          <p className="px-5 py-8 text-sm text-muted text-center">
+            Ninguna plaza ocupada aún.
           </p>
         )}
       </section>
 
-      {free < total * 0.1 && free > 0 && (
-        <div className="mt-6 rounded border border-saffron/30 bg-saffron/5 p-4">
-          <p className="text-sm text-ink font-medium">
-            Quedan pocas plazas libres
+      {/* Licencias libres */}
+      <section className="rounded border border-rule bg-white">
+        <header className="px-5 py-3 border-b border-rule">
+          <h2 className="text-sm font-medium text-ink">Libres ({free.length})</h2>
+        </header>
+        {free.length > 0 ? (
+          <div className="px-5 py-4 flex flex-wrap gap-2">
+            {free.map((l) => (
+              <span
+                key={l.id}
+                className="text-xs font-mono px-2 py-1 rounded bg-paper border border-rule text-muted"
+              >
+                Libre
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="px-5 py-8 text-sm text-muted text-center">
+            No quedan plazas libres. Libera una o sube de plan.
           </p>
-          <p className="text-xs text-muted mt-1 mb-2">
-            Si tu academia va a crecer este curso, plantéate subir de plan para
-            no bloquearte al invitar nuevos alumnos.
-          </p>
-          <Link
-            href="/academia/facturacion"
-            className="text-xs text-navy hover:underline inline-flex items-center gap-1"
-          >
-            Ver planes <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }

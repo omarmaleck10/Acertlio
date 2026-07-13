@@ -1,69 +1,85 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, X, AlertTriangle } from "lucide-react";
-import { releaseLicenseAction } from "@/app/academia/licencias/actions";
+import { useFormState, useFormStatus } from "react-dom";
+import { useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, X } from "lucide-react";
+import {
+  releaseLicenseAction,
+  type AcademyActionResult,
+} from "@/app/academia/actions";
+
+const initial: AcademyActionResult = { error: null, success: null };
 
 interface Props {
   licenseId: string;
   studentName: string;
 }
 
-/**
- * Botón "Liberar" para una licencia asignada.
- * Muestra confirmación antes de liberar porque es una acción irreversible
- * (el alumno queda archivado).
- */
 export function ReleaseLicenseButton({ licenseId, studentName }: Props) {
+  const [state, formAction] = useFormState(releaseLicenseAction, initial);
   const [confirming, setConfirming] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
-  const handleRelease = () => {
-    startTransition(async () => {
-      const result = await releaseLicenseAction(licenseId);
-      if (result.error) {
-        setError(result.error);
-        setConfirming(false);
-      }
-    });
-  };
-
+  if (state.success) {
+    return (
+      <span className="text-xs text-ok inline-flex items-center gap-1">
+        <CheckCircle2 className="h-3 w-3" />
+        {state.success}
+      </span>
+    );
+  }
+  if (state.error) {
+    return (
+      <span className="text-xs text-bad inline-flex items-center gap-1">
+        <AlertCircle className="h-3 w-3" />
+        {state.error}
+      </span>
+    );
+  }
   if (!confirming) {
     return (
       <button
+        type="button"
         onClick={() => setConfirming(true)}
-        className="text-xs text-muted hover:text-bad px-2.5 py-1 rounded hover:bg-bad/5 transition-colors"
+        className="text-xs text-muted hover:text-bad transition-colors"
       >
         Liberar
       </button>
     );
   }
-
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-bad flex items-center gap-1">
-        <AlertTriangle className="h-3 w-3" />
-        ¿Archivar a {studentName}?
+    <form action={formAction} className="inline-flex items-center gap-2">
+      <input type="hidden" name="licenseId" value={licenseId} />
+      <span className="text-xs text-muted">
+        ¿Archivar a <strong className="text-ink">{studentName}</strong>?
       </span>
+      <SubmitBtn />
       <button
-        onClick={handleRelease}
-        disabled={isPending}
-        className="text-xs text-white bg-bad px-2.5 py-1 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
-      >
-        {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-        Sí, liberar
-      </button>
-      <button
+        type="button"
         onClick={() => setConfirming(false)}
-        disabled={isPending}
-        className="text-xs text-muted px-1"
+        className="text-xs text-muted hover:text-ink"
       >
-        <X className="h-3 w-3" />
+        <X className="h-3.5 w-3.5" />
       </button>
-      {error && (
-        <span className="text-xs text-bad ml-2">{error}</span>
+    </form>
+  );
+}
+
+function SubmitBtn() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="text-xs text-bad hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+    >
+      {pending ? (
+        <>
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Archivando…
+        </>
+      ) : (
+        "Sí, liberar"
       )}
-    </div>
+    </button>
   );
 }
