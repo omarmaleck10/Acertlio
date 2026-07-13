@@ -13,7 +13,7 @@
 // ─── ENUMS ───────────────────────────────────────────────────────────
 
 export type UserRole = "super_admin" | "academy_admin" | "teacher" | "student";
-export type CambridgeLevel = "B1" | "B2" | "C1";
+export type CambridgeLevel = "A2" | "B1" | "B2" | "C1" | "C2";
 export type AcademyStatus = "active" | "paused" | "cancelled";
 export type AcademyPlan = "starter" | "pro" | "business" | "enterprise";
 export type ExamSkill =
@@ -24,10 +24,13 @@ export type ExamSkill =
   | "speaking";
 export type QuestionType =
   | "multiple_choice"
+  | "multiple_choice_cloze"
   | "word_formation"
   | "gapped_text"
   | "open_cloze"
   | "multiple_matching"
+  | "cross_text_multiple_matching"
+  | "key_word_transformation"
   | "writing_task";
 export type AssignmentStatus =
   | "pending"
