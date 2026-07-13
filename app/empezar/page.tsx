@@ -30,8 +30,8 @@ const options: Array<{
     icon: Building2,
     title: "Tengo una academia pequeña",
     description: "Hasta 50 alumnos preparando Cambridge al año.",
-    hint: "Plan Starter o Pro · desde 39 €/mes",
-    href: "/precios#starter",
+    hint: "Plan Starter · 39 €/mes",
+    href: "/empezar/academia?plan=starter",
   },
   {
     id: "academia-grande",
@@ -39,7 +39,7 @@ const options: Array<{
     title: "Tengo una academia grande",
     description: "Entre 50 y 250 alumnos preparando Cambridge al año.",
     hint: "Plan Business · 139 €/mes",
-    href: "/precios#business",
+    href: "/empezar/academia?plan=business",
   },
   {
     id: "enterprise",

@@ -188,7 +188,14 @@ export default function PreciosPage() {
                 </div>
 
                 <div className="mt-auto">
-                  <Link href={p.name === "Enterprise" ? "/contacto" : "/empezar"} className="block">
+                  <Link
+                    href={
+                      p.name === "Enterprise"
+                        ? "/contacto"
+                        : `/empezar/academia?plan=${p.name.toLowerCase()}`
+                    }
+                    className="block"
+                  >
                     <Button
                       variant={p.featured ? "primary" : "secondary"}
                       className="w-full"

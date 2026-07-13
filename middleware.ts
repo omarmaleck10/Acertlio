@@ -17,6 +17,8 @@ const PUBLIC_PATHS = [
   "/contacto",
   "/empezar",
   "/empezar/alumno",
+  "/empezar/academia",
+  "/activar",
   "/legal/aviso",
   "/legal/privacidad",
   "/legal/cookies",
