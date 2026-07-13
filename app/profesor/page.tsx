@@ -1,103 +1,146 @@
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Users, ClipboardCheck, FileText, ArrowRight } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/user";
 
-const writingsPending = [
-  { student: "Lucía Romero", exam: "B2 First — Writing Part 1", submitted: "hace 4 h" },
-  { student: "Daniel Ortega", exam: "B1 Preliminary — Writing Part 2", submitted: "hace 6 h" },
-  { student: "Iván Molina", exam: "B2 First — Writing Part 2", submitted: "ayer" },
-  { student: "Mónica Reyes", exam: "C1 Advanced — Writing Part 1", submitted: "ayer" },
-];
+export default async function ProfesorResumenPage() {
+  const supabase = createClient();
+  const user = await getCurrentUser();
+  if (!user) return null;
 
-const students = [
-  { name: "Lucía Romero", level: "B2 First", mocks: 4, lastScore: "168/190", pace: "On track" },
-  { name: "Pablo Castaño", level: "C1 Advanced", mocks: 2, lastScore: "152/210", pace: "Riesgo" },
-  { name: "María Pérez", level: "B2 First", mocks: 6, lastScore: "174/190", pace: "On track" },
-  { name: "Daniel Ortega", level: "B1 Preliminary", mocks: 3, lastScore: "138/170", pace: "On track" },
-  { name: "Iván Molina", level: "B2 First", mocks: 5, lastScore: "172/190", pace: "On track" },
-];
+  // Alumnos asignados (via teacher_students)
+  const { data: assignments } = await supabase
+    .from("teacher_students")
+    .select("student_id")
+    .eq("teacher_id", user.id);
 
-export default function ProfesorDashboard() {
+  const studentIds = (assignments ?? []).map((a) => a.student_id);
+
+  const { data: students } = studentIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name, email, current_level, created_at")
+        .in("id", studentIds)
+        .eq("is_active", true)
+        .order("full_name", { ascending: true })
+        .limit(6)
+    : { data: [] };
+
+  const totalStudents = studentIds.length;
+
   return (
-    <div className="px-8 py-8 max-w-6xl">
+    <div className="px-8 py-8 max-w-5xl">
       <header className="mb-8">
-        <p className="text-xs uppercase tracking-wider text-muted">Resumen</p>
-        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">Hola, Helen</h1>
+        <p className="text-xs uppercase tracking-wider text-muted">Panel profesor</p>
+        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">
+          Hola, {user.profile.full_name?.split(" ")[0] ?? "profe"}
+        </h1>
+        <p className="text-sm text-muted mt-2">
+          {totalStudents > 0
+            ? `Tienes ${totalStudents} alumno${totalStudents === 1 ? "" : "s"} asignado${totalStudents === 1 ? "" : "s"}.`
+            : "Aún no tienes alumnos asignados."}
+        </p>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
-        <StatCard label="Alumnos asignados" value="18" />
-        <StatCard label="Mocks corregidos" value="42" hint="Este mes" />
-        <StatCard label="Writings pendientes" value="4" hint="Plazo medio: 24 h" />
-        <StatCard label="Media de aprobados" value="78 %" trend={{ value: "+3 %", positive: true }} />
+      <div className="grid gap-4 sm:grid-cols-3 mb-8">
+        <StatCard
+          icon={<Users className="h-4 w-4" />}
+          label="Alumnos"
+          value={String(totalStudents)}
+          hint="Asignados a ti"
+          href="/profesor/alumnos"
+        />
+        <StatCard
+          icon={<ClipboardCheck className="h-4 w-4" />}
+          label="Simulacros"
+          value="0"
+          hint="Próximamente"
+          href="/profesor/simulacros"
+        />
+        <StatCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Writings"
+          value="0"
+          hint="Pendientes de corregir"
+          href="/profesor/writing"
+        />
       </div>
 
-      <section className="rounded border border-rule bg-white mb-3">
-        <header className="px-6 py-4 border-b border-rule flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-saffron" />
-            <h2 className="text-sm font-medium text-ink">Writings pendientes de corrección</h2>
-          </div>
-          <Button size="sm" variant="secondary">Corregir el siguiente</Button>
-        </header>
-        <ul className="divide-y divide-rule">
-          {writingsPending.map((w, i) => (
-            <li key={i} className="px-6 py-3.5 flex items-center justify-between">
-              <div>
-                <p className="text-sm text-ink font-medium">{w.student}</p>
-                <p className="text-xs text-muted mt-0.5">{w.exam}</p>
-              </div>
-              <div className="flex items-center gap-6">
-                <span className="text-xs text-muted">{w.submitted}</span>
-                <button className="text-xs text-navy hover:underline">Corregir →</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="rounded border border-rule bg-white">
-        <header className="px-6 py-4 border-b border-rule">
+        <header className="px-5 py-3 border-b border-rule flex items-center justify-between">
           <h2 className="text-sm font-medium text-ink">Tus alumnos</h2>
+          {totalStudents > 6 && (
+            <Link
+              href="/profesor/alumnos"
+              className="text-xs text-navy hover:underline flex items-center gap-1"
+            >
+              Ver todos <ArrowRight className="h-3 w-3" />
+            </Link>
+          )}
         </header>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-paper">
-              <tr className="text-left">
-                <th className="font-medium text-muted px-6 py-3">Alumno</th>
-                <th className="font-medium text-muted px-6 py-3">Nivel</th>
-                <th className="font-medium text-muted px-6 py-3 text-right">Mocks</th>
-                <th className="font-medium text-muted px-6 py-3 text-right">Última nota</th>
-                <th className="font-medium text-muted px-6 py-3">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {students.map((s) => (
-                <tr key={s.name}>
-                  <td className="px-6 py-3 text-ink">{s.name}</td>
-                  <td className="px-6 py-3 text-muted">{s.level}</td>
-                  <td className="px-6 py-3 text-right font-mono tabular-nums text-ink">{s.mocks}</td>
-                  <td className="px-6 py-3 text-right font-mono tabular-nums text-ink">{s.lastScore}</td>
-                  <td className="px-6 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-xs ${
-                        s.pace === "On track" ? "text-ok" : "text-bad"
-                      }`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          s.pace === "On track" ? "bg-ok" : "bg-bad"
-                        }`}
-                      />
-                      {s.pace}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {students && students.length > 0 ? (
+          <ul className="divide-y divide-rule">
+            {students.map((s) => (
+              <li
+                key={s.id}
+                className="px-5 py-3 flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-sm text-ink font-medium">
+                    {s.full_name ?? "Sin nombre"}
+                  </p>
+                  <p className="text-xs text-muted font-mono">{s.email}</p>
+                </div>
+                {s.current_level && (
+                  <span className="text-xs font-mono px-2 py-1 rounded bg-navy-50 text-navy">
+                    {s.current_level}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="px-5 py-12 text-center">
+            <Users className="h-8 w-8 text-muted mx-auto mb-3 opacity-40" />
+            <p className="text-sm text-muted mb-1">
+              Aún no tienes alumnos asignados.
+            </p>
+            <p className="text-xs text-muted">
+              Pide a tu academia que te asigne alumnos desde su panel.
+            </p>
+          </div>
+        )}
       </section>
     </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded border border-rule bg-white p-4 hover:border-navy/40 transition-colors block"
+    >
+      <div className="flex items-center gap-2 text-muted mb-2">
+        {icon}
+        <span className="text-xs uppercase tracking-wider">{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-ink font-mono tabular-nums">
+        {value}
+      </p>
+      <p className="text-xs text-muted mt-1">{hint}</p>
+    </Link>
   );
 }

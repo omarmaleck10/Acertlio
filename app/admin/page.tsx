@@ -1,64 +1,202 @@
-import { StatCard } from "@/components/dashboard/stat-card";
+import Link from "next/link";
+import {
+  Building2,
+  Users,
+  GraduationCap,
+  Mail,
+  ArrowRight,
+  Ticket,
+} from "lucide-react";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const academies = [
-  { name: "English Studio Madrid", plan: "Pro", seats: "38 / 50", mrr: "79 €" },
-  { name: "Cambridge House Sevilla", plan: "Business", seats: "84 / 100", mrr: "139 €" },
-  { name: "Speak Up Valencia", plan: "Starter", seats: "12 / 20", mrr: "39 €" },
-  { name: "British Bilbao", plan: "Pro", seats: "47 / 50", mrr: "79 €" },
-  { name: "FluentLab Barcelona", plan: "Business", seats: "62 / 100", mrr: "139 €" },
-  { name: "Anglo Málaga", plan: "Pro", seats: "31 / 50", mrr: "79 €" },
-];
+export default async function AdminResumenPage() {
+  // Superadmin: bypasseamos RLS para tener contadores globales
+  const admin = createAdminClient();
 
-export default function AdminDashboard() {
+  const [
+    { count: totalAcademies },
+    { count: activeAcademies },
+    { count: totalTeachers },
+    { count: totalStudents },
+    { count: totalLicenses },
+    { count: usedLicenses },
+    { count: pendingInvites },
+    { data: recentAcademies },
+  ] = await Promise.all([
+    admin.from("academies").select("*", { count: "exact", head: true }),
+    admin
+      .from("academies")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active"),
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "teacher")
+      .eq("is_active", true),
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "student")
+      .eq("is_active", true),
+    admin.from("licenses").select("*", { count: "exact", head: true }).eq("is_active", true),
+    admin
+      .from("licenses")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true)
+      .not("student_id", "is", null),
+    admin
+      .from("invitations")
+      .select("*", { count: "exact", head: true })
+      .is("accepted_at", null),
+    admin
+      .from("academies")
+      .select("id, name, plan, city, created_at, total_seats, status")
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
   return (
     <div className="px-8 py-8 max-w-6xl">
       <header className="mb-8">
-        <p className="text-xs uppercase tracking-wider text-muted">Plataforma · Vista global</p>
-        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">Acertlio</h1>
+        <p className="text-xs uppercase tracking-wider text-muted">Superadmin</p>
+        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">
+          Panorama de Acertlio
+        </h1>
+        <p className="text-sm text-muted mt-2">
+          Vista global de la plataforma. Todo lo que veas aquí es real.
+        </p>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
-        <StatCard label="Academias activas" value="6" trend={{ value: "+1 este mes", positive: true }} />
-        <StatCard label="Alumnos totales" value="274" trend={{ value: "+38", positive: true }} />
-        <StatCard label="MRR" value="554 €" hint="Ingreso mensual recurrente" />
-        <StatCard label="Mocks realizados (30 d)" value="412" trend={{ value: "+18 %", positive: true }} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <StatCard
+          icon={<Building2 className="h-4 w-4" />}
+          label="Academias"
+          value={String(totalAcademies ?? 0)}
+          hint={`${activeAcademies ?? 0} activas`}
+          href="/admin/academias"
+        />
+        <StatCard
+          icon={<Users className="h-4 w-4" />}
+          label="Profesores"
+          value={String(totalTeachers ?? 0)}
+          hint="Total en la plataforma"
+          href="/admin/usuarios"
+        />
+        <StatCard
+          icon={<GraduationCap className="h-4 w-4" />}
+          label="Alumnos"
+          value={String(totalStudents ?? 0)}
+          hint="Total en la plataforma"
+          href="/admin/usuarios"
+        />
+        <StatCard
+          icon={<Ticket className="h-4 w-4" />}
+          label="Plazas usadas"
+          value={`${usedLicenses ?? 0}/${totalLicenses ?? 0}`}
+          hint={`${(totalLicenses ?? 0) - (usedLicenses ?? 0)} libres`}
+          href="/admin/academias"
+        />
       </div>
 
-      <section className="rounded border border-rule bg-white">
-        <header className="px-6 py-4 border-b border-rule flex items-center justify-between">
-          <h2 className="text-sm font-medium text-ink">Academias</h2>
-          <button className="text-xs text-muted hover:text-ink">Ver todas</button>
-        </header>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-paper">
-              <tr className="text-left">
-                <th className="font-medium text-muted px-6 py-3">Academia</th>
-                <th className="font-medium text-muted px-6 py-3">Plan</th>
-                <th className="font-medium text-muted px-6 py-3 text-right">Licencias</th>
-                <th className="font-medium text-muted px-6 py-3 text-right">MRR</th>
-                <th className="font-medium text-muted px-6 py-3">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {academies.map((a) => (
-                <tr key={a.name}>
-                  <td className="px-6 py-3 text-ink">{a.name}</td>
-                  <td className="px-6 py-3 text-muted">{a.plan}</td>
-                  <td className="px-6 py-3 text-right font-mono tabular-nums text-ink">{a.seats}</td>
-                  <td className="px-6 py-3 text-right font-mono tabular-nums text-ink">{a.mrr}</td>
-                  <td className="px-6 py-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-ok">
-                      <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-                      Activa
-                    </span>
-                  </td>
-                </tr>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Últimas academias */}
+        <section className="rounded border border-rule bg-white">
+          <header className="px-5 py-3 border-b border-rule flex items-center justify-between">
+            <h2 className="text-sm font-medium text-ink">Últimas academias</h2>
+            <Link
+              href="/admin/academias"
+              className="text-xs text-navy hover:underline flex items-center gap-1"
+            >
+              Ver todas <ArrowRight className="h-3 w-3" />
+            </Link>
+          </header>
+          {recentAcademies && recentAcademies.length > 0 ? (
+            <ul className="divide-y divide-rule">
+              {recentAcademies.map((a) => (
+                <li key={a.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-ink font-medium">{a.name}</p>
+                    <p className="text-xs text-muted mt-0.5">
+                      {a.plan} · {a.total_seats} plazas
+                      {a.city ? ` · ${a.city}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      a.status === "active"
+                        ? "text-xs font-medium px-2 py-1 rounded bg-ok/10 text-ok"
+                        : "text-xs font-medium px-2 py-1 rounded bg-muted/10 text-muted"
+                    }
+                  >
+                    {a.status}
+                  </span>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </ul>
+          ) : (
+            <p className="px-5 py-8 text-sm text-muted text-center">
+              Aún no hay academias registradas.
+            </p>
+          )}
+        </section>
+
+        {/* Actividad reciente */}
+        <section className="rounded border border-rule bg-white p-5">
+          <h2 className="text-sm font-medium text-ink mb-4">Panel de control</h2>
+          <ul className="space-y-3 text-sm">
+            <li className="flex items-center justify-between py-1">
+              <span className="text-muted">Invitaciones pendientes</span>
+              <span className="text-ink font-mono">{pendingInvites ?? 0}</span>
+            </li>
+            <li className="flex items-center justify-between py-1">
+              <span className="text-muted">Simulacros publicados</span>
+              <span className="text-ink font-mono">0</span>
+            </li>
+            <li className="flex items-center justify-between py-1">
+              <span className="text-muted">Intentos totales</span>
+              <span className="text-ink font-mono">0</span>
+            </li>
+          </ul>
+          <div className="mt-6 pt-4 border-t border-rule">
+            <p className="text-xs text-muted">
+              Envía un email de prueba desde{" "}
+              <Link href="/api/test-email?to=acertlio.app@gmail.com" className="text-navy hover:underline font-mono">
+                /api/test-email
+              </Link>
+            </p>
+          </div>
+        </section>
+      </div>
     </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded border border-rule bg-white p-4 hover:border-navy/40 transition-colors block"
+    >
+      <div className="flex items-center gap-2 text-muted mb-2">
+        {icon}
+        <span className="text-xs uppercase tracking-wider">{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-ink font-mono tabular-nums">
+        {value}
+      </p>
+      <p className="text-xs text-muted mt-1">{hint}</p>
+    </Link>
   );
 }

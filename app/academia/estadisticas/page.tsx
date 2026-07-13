@@ -1,20 +1,23 @@
 import { BarChart3 } from "lucide-react";
-import { ComingSoonPanel } from "@/components/dashboard/coming-soon";
 
 export default function AcademiaEstadisticasPage() {
   return (
-    <ComingSoonPanel
-      icon={<BarChart3 />}
-      title="Estadísticas de la academia"
-      description="Vista panorámica del rendimiento de toda tu academia: tasa de aprobados estimada, evolución por niveles, comparativa entre profesores y grupos."
-      features={[
-        "Tasa de aprobados estimada global",
-        "Comparativa por nivel (B1, B2, C1)",
-        "Comparativa entre profesores",
-        "Evolución mes a mes",
-        "Exportar informe en PDF para socios",
-      ]}
-      phase="Fase 6"
-    />
+    <div className="px-8 py-8 max-w-3xl">
+      <header className="mb-8">
+        <p className="text-xs uppercase tracking-wider text-muted">Estadísticas</p>
+        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">
+          Rendimiento global
+        </h1>
+      </header>
+      <div className="rounded border border-saffron/30 bg-saffron/5 p-8 text-center">
+        <BarChart3 className="h-10 w-10 text-saffron mx-auto mb-4 opacity-70" />
+        <p className="text-sm text-ink font-medium mb-2">Aún no hay datos</p>
+        <p className="text-sm text-muted max-w-md mx-auto">
+          Cuando tus alumnos empiecen a hacer simulacros, aquí verás la
+          radiografía completa: tasas de aprobado por nivel, ranking por
+          profesor, evolución mes a mes.
+        </p>
+      </div>
+    </div>
   );
 }

@@ -1,18 +1,30 @@
-import { Users } from "lucide-react";
+import Link from "next/link";
+import { Users, ChevronRight } from "lucide-react";
 import { InviteForm } from "@/components/academia/invite-form";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AcademiaProfesoresPage() {
   const supabase = createClient();
 
-  // Traer profesores existentes (RLS filtra por academia automáticamente)
+  // Profesores existentes con conteo de alumnos asignados
   const { data: teachers } = await supabase
     .from("profiles")
     .select("id, full_name, email, is_active, created_at")
     .eq("role", "teacher")
     .order("created_at", { ascending: false });
 
-  // Traer invitaciones pendientes
+  // Conteo de alumnos por profesor (subquery en JS por simplicidad)
+  const teachersWithCounts = await Promise.all(
+    (teachers ?? []).map(async (t) => {
+      const { count } = await supabase
+        .from("teacher_students")
+        .select("*", { count: "exact", head: true })
+        .eq("teacher_id", t.id);
+      return { ...t, studentCount: count ?? 0 };
+    })
+  );
+
+  // Invitaciones pendientes
   const { data: pending } = await supabase
     .from("invitations")
     .select("email, created_at, expires_at")
@@ -28,13 +40,12 @@ export default async function AcademiaProfesoresPage() {
           Tus profesores
         </h1>
         <p className="text-sm text-muted mt-2">
-          Invita a los profesores de tu academia. Recibirán un email para crear
-          su contraseña y acceder a su panel.
+          Invita profesores y asígnales alumnos. Cada profesor solo verá los
+          alumnos que le asignes.
         </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Formulario de invitación */}
         <aside className="lg:col-span-1">
           <div className="rounded border border-rule bg-white p-5 sticky top-4">
             <div className="flex items-center gap-2 mb-4">
@@ -45,23 +56,37 @@ export default async function AcademiaProfesoresPage() {
           </div>
         </aside>
 
-        {/* Listados */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Profesores activos */}
           <section className="rounded border border-rule bg-white">
-            <header className="px-5 py-3 border-b border-rule flex items-center justify-between">
+            <header className="px-5 py-3 border-b border-rule">
               <h2 className="text-sm font-medium text-ink">
-                Activos ({teachers?.length ?? 0})
+                Activos ({teachersWithCounts.length})
               </h2>
             </header>
-            {teachers && teachers.length > 0 ? (
+            {teachersWithCounts.length > 0 ? (
               <ul className="divide-y divide-rule">
-                {teachers.map((t) => (
-                  <li key={t.id} className="px-5 py-3">
-                    <p className="text-sm text-ink font-medium">
-                      {t.full_name ?? "Sin nombre"}
-                    </p>
-                    <p className="text-xs text-muted font-mono">{t.email}</p>
+                {teachersWithCounts.map((t) => (
+                  <li key={t.id}>
+                    <Link
+                      href={`/academia/profesores/${t.id}`}
+                      className="px-5 py-3 flex items-center justify-between hover:bg-paper transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-ink font-medium">
+                          {t.full_name ?? "Sin nombre"}
+                        </p>
+                        <p className="text-xs text-muted font-mono truncate">
+                          {t.email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-3">
+                        <span className="text-xs text-muted">
+                          {t.studentCount} alumno
+                          {t.studentCount === 1 ? "" : "s"}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-muted" />
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -72,7 +97,6 @@ export default async function AcademiaProfesoresPage() {
             )}
           </section>
 
-          {/* Invitaciones pendientes */}
           {pending && pending.length > 0 && (
             <section className="rounded border border-rule bg-white">
               <header className="px-5 py-3 border-b border-rule">
@@ -89,7 +113,8 @@ export default async function AcademiaProfesoresPage() {
                     <div>
                       <p className="text-sm text-ink font-mono">{inv.email}</p>
                       <p className="text-xs text-muted mt-0.5">
-                        Enviada {new Date(inv.created_at).toLocaleDateString("es-ES")}
+                        Enviada{" "}
+                        {new Date(inv.created_at).toLocaleDateString("es-ES")}
                       </p>
                     </div>
                     <span className="text-xs text-saffron font-medium">
