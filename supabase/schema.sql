@@ -40,7 +40,7 @@ create extension if not exists "pgcrypto";  -- para gen_random_bytes()
 
 -- Tipos ENUM: valores fijos permitidos en columnas específicas.
 create type user_role as enum ('super_admin', 'academy_admin', 'teacher', 'student');
-create type cambridge_level as enum ('B1', 'B2', 'C1');
+create type cambridge_level as enum ('A2', 'B1', 'B2', 'C1', 'C2');
 create type academy_status as enum ('active', 'paused', 'cancelled');
 create type academy_plan as enum ('starter', 'pro', 'business', 'enterprise');
 create type exam_skill as enum ('reading', 'use_of_english', 'listening', 'writing', 'speaking');
