@@ -131,9 +131,10 @@ export const config = {
   matcher: [
     /*
      * Excluir de este middleware:
+     * - api/* (los endpoints tienen su propia autenticación)
      * - _next/static, _next/image
      * - favicon.svg, opengraph-image, sitemap.xml, robots.txt
      */
-    "/((?!_next/static|_next/image|favicon.svg|opengraph-image|sitemap.xml|robots.txt).*)",
+    "/((?!api|_next/static|_next/image|favicon.svg|opengraph-image|sitemap.xml|robots.txt).*)",
   ],
 };

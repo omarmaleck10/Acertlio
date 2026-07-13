@@ -190,7 +190,8 @@ export async function signUpAcademyAction(
     });
 
     // ─── 4. Enviar email de bienvenida (best effort) ──────────────
-    // Si falla, no rompemos el signup — el usuario ya está creado.
+    // Esperamos al envío para poder loguear el error si falla.
+    // Aun si falla, no romperemos el signup — el usuario ya está creado.
     const emailPayload = welcomeAcademyEmail({
       academyName,
       adminName,
@@ -198,16 +199,26 @@ export async function signUpAcademyAction(
       totalSeats,
     });
 
-    // Fire-and-forget: no bloqueamos la respuesta esperando al email
-    sendEmail({
-      to: email,
-      toName: adminName,
-      subject: emailPayload.subject,
-      htmlContent: emailPayload.htmlContent,
-      textContent: emailPayload.textContent,
-    }).catch((err) => {
-      console.error("[signup] Fallo enviando email de bienvenida:", err);
-    });
+    try {
+      const emailResult = await sendEmail({
+        to: email,
+        toName: adminName,
+        subject: emailPayload.subject,
+        htmlContent: emailPayload.htmlContent,
+        textContent: emailPayload.textContent,
+      });
+      if (!emailResult.success) {
+        console.error(
+          `[signup] Email de bienvenida falló para ${email}: ${emailResult.error}`
+        );
+      } else {
+        console.log(
+          `[signup] Email de bienvenida enviado a ${email} (messageId: ${emailResult.messageId})`
+        );
+      }
+    } catch (err) {
+      console.error("[signup] Excepción enviando email de bienvenida:", err);
+    }
 
     // ─── 5. Iniciar sesión y redirigir ────────────────────────────
     const supabase = createClient();
