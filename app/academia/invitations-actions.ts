@@ -214,4 +214,6 @@ export async function inviteStudentAction(
   return result;
 }
 
-export { initial as initialInviteState };
+// Nota: el estado inicial del form (`{ error: null, success: null }`)
+// se define directamente en el Client Component (invite-form.tsx),
+// no aquí. Un archivo con "use server" solo puede exportar funciones async.
