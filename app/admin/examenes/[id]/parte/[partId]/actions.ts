@@ -206,26 +206,31 @@ export async function updateQuestionAction(
   const stem = String(formData.get("stem") ?? "").trim();
   const correctAnswer = String(formData.get("correct_answer") ?? "").trim();
 
-  // Contexto extra (JSON string) — writing notes, opening sentence, etc.
+  // Contexto extra (JSON string) — writing notes, notice_text para Part 1, etc.
+  // Si viene vacío, preservamos el existente en lugar de sobrescribirlo con {}
   const contextRaw = String(formData.get("context") ?? "").trim();
-  let context: Record<string, unknown> = {};
-  if (contextRaw) {
+  let contextUpdate: Record<string, unknown> | undefined = undefined;
+  if (contextRaw && contextRaw !== "{}") {
     try {
-      context = JSON.parse(contextRaw);
+      contextUpdate = JSON.parse(contextRaw);
     } catch {
       return { error: "Contexto extra tiene formato inválido.", success: null };
     }
   }
 
   // Actualizar la pregunta
+  const updatePayload: Record<string, unknown> = {
+    stem,
+    correct_answer: correctAnswer || null,
+    updated_at: new Date().toISOString(),
+  };
+  if (contextUpdate !== undefined) {
+    updatePayload.context = contextUpdate;
+  }
+
   const { error: updateError } = await admin
     .from("questions")
-    .update({
-      stem,
-      correct_answer: correctAnswer || null,
-      context,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", questionId);
 
   if (updateError) {
