@@ -29,7 +29,7 @@ export function MultipleMatchingRenderer({
     <div className="space-y-4">
       {/* Descripción de la persona / pregunta */}
       <div className="rounded border-2 border-rule bg-white px-5 py-4">
-        <p className="text-[15px] leading-relaxed text-ink">
+        <p className="sim-text">
           <span className="font-mono font-semibold text-navy mr-2">
             {question.question_number}.
           </span>

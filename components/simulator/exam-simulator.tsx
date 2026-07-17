@@ -1,14 +1,30 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { Send, Loader2, AlertTriangle, Menu, X, Clock } from "lucide-react";
-import type { LoadedExamForAttempt, LoadedPart, LoadedQuestion } from "@/lib/exams/loader";
+import {
+  Send,
+  Loader2,
+  AlertTriangle,
+  Clock,
+  Maximize2,
+  Minimize2,
+  Settings2,
+} from "lucide-react";
+import type {
+  LoadedExamForAttempt,
+  LoadedPart,
+  LoadedQuestion,
+} from "@/lib/exams/loader";
 import { saveAnswersAction, submitAttemptAction } from "@/app/alumno/examen/actions";
 import { MultipleChoiceRenderer } from "./question-renderers/multiple-choice-renderer";
 import { OpenClozeRenderer } from "./question-renderers/open-cloze-renderer";
 import { MultipleMatchingRenderer } from "./question-renderers/multiple-matching-renderer";
 import { WritingTaskRenderer } from "./question-renderers/writing-task-renderer";
+import {
+  AccessibilityPanel,
+  type FontSize,
+  type ColorTheme,
+} from "./accessibility-panel";
 
 // ─── Tipos ──────────────────────────────────────────────────────────
 interface AnswerState {
@@ -21,10 +37,9 @@ interface Props {
 }
 
 const AUTOSAVE_INTERVAL_MS = 15_000;
+const STORAGE_KEY_FONT = "acertlio.simulator.fontSize";
+const STORAGE_KEY_THEME = "acertlio.simulator.colorTheme";
 
-/**
- * Formatea segundos a HH:MM:SS o MM:SS
- */
 function formatTime(totalSeconds: number): string {
   if (totalSeconds < 0) totalSeconds = 0;
   const h = Math.floor(totalSeconds / 3600);
@@ -34,11 +49,105 @@ function formatTime(totalSeconds: number): string {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
+// ─── Mapa de estilos por preferencia ─────────────────────────────────
+const FONT_SIZE_CLASSES: Record<FontSize, string> = {
+  sm: "sim-fs-sm",
+  base: "sim-fs-base",
+  lg: "sim-fs-lg",
+  xl: "sim-fs-xl",
+};
+
+const THEME_STYLES: Record<
+  ColorTheme,
+  { bg: string; text: string; panelBg: string; panelBorder: string }
+> = {
+  paper: {
+    bg: "bg-paper",
+    text: "text-ink",
+    panelBg: "bg-white",
+    panelBorder: "border-rule",
+  },
+  sepia: {
+    bg: "bg-[#F4EAD5]",
+    text: "text-[#3E2C1C]",
+    panelBg: "bg-[#FBF5E6]",
+    panelBorder: "border-[#D4C4A0]",
+  },
+  "high-contrast": {
+    bg: "bg-white",
+    text: "text-black",
+    panelBg: "bg-white",
+    panelBorder: "border-black",
+  },
+  dark: {
+    bg: "bg-[#1A1A1A]",
+    text: "text-[#F5F5F5]",
+    panelBg: "bg-[#2A2A2A]",
+    panelBorder: "border-[#3A3A3A]",
+  },
+};
+
 export function ExamSimulator({ loaded }: Props) {
-  const router = useRouter();
+  // ─── Preferencias visuales (persistidas en localStorage) ──────────
+  const [fontSize, setFontSize] = useState<FontSize>("base");
+  const [colorTheme, setColorTheme] = useState<ColorTheme>("paper");
+  const [showAccessibility, setShowAccessibility] = useState(false);
+
+  // Cargar preferencias al montar
+  useEffect(() => {
+    try {
+      const savedFont = localStorage.getItem(STORAGE_KEY_FONT) as FontSize | null;
+      const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) as ColorTheme | null;
+      if (savedFont && ["sm", "base", "lg", "xl"].includes(savedFont)) {
+        setFontSize(savedFont);
+      }
+      if (
+        savedTheme &&
+        ["paper", "sepia", "high-contrast", "dark"].includes(savedTheme)
+      ) {
+        setColorTheme(savedTheme);
+      }
+    } catch {
+      // localStorage no disponible, ignoramos
+    }
+  }, []);
+
+  const handleFontSizeChange = useCallback((size: FontSize) => {
+    setFontSize(size);
+    try {
+      localStorage.setItem(STORAGE_KEY_FONT, size);
+    } catch {}
+  }, []);
+
+  const handleColorThemeChange = useCallback((theme: ColorTheme) => {
+    setColorTheme(theme);
+    try {
+      localStorage.setItem(STORAGE_KEY_THEME, theme);
+    } catch {}
+  }, []);
+
+  // ─── Fullscreen ──────────────────────────────────────────────────
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (e) {
+      console.error("Fullscreen error:", e);
+    }
+  }, []);
 
   // ─── Estado global de respuestas ─────────────────────────────────
-  // key = question_id, value = { answerText, selectedOptionId }
   const [answers, setAnswers] = useState<Map<string, AnswerState>>(() => {
     const initial = new Map<string, AnswerState>();
     for (const part of loaded.parts) {
@@ -54,10 +163,9 @@ export function ExamSimulator({ loaded }: Props) {
     return initial;
   });
 
-  // Set de IDs con cambios pendientes de guardar
   const dirtyRef = useRef<Set<string>>(new Set());
 
-  // ─── Navegación entre partes / preguntas ─────────────────────────
+  // ─── Navegación ──────────────────────────────────────────────────
   const [activePartIndex, setActivePartIndex] = useState(0);
   const activePart: LoadedPart | undefined = loaded.parts[activePartIndex];
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
@@ -69,15 +177,15 @@ export function ExamSimulator({ loaded }: Props) {
     return Math.max(0, totalTimeSec - spent);
   });
   const [showTimer, setShowTimer] = useState(true);
-  const [timeSpentSec, setTimeSpentSec] = useState(loaded.attempt.time_spent_seconds ?? 0);
+  const [timeSpentSec, setTimeSpentSec] = useState(
+    loaded.attempt.time_spent_seconds ?? 0
+  );
 
-  // ─── Estado de UI ────────────────────────────────────────────────
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // ─── UI ──────────────────────────────────────────────────────────
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
 
-  // ─── Handler de cambio de respuesta ──────────────────────────────
   const updateAnswer = useCallback(
     (questionId: string, next: Partial<AnswerState>) => {
       setAnswers((prev) => {
@@ -95,7 +203,7 @@ export function ExamSimulator({ loaded }: Props) {
     []
   );
 
-  // ─── Autosave: pushea respuestas dirty cada 15s ──────────────────
+  // ─── Autosave ────────────────────────────────────────────────────
   const doSave = useCallback(async () => {
     if (dirtyRef.current.size === 0) return;
     const dirty = Array.from(dirtyRef.current);
@@ -118,7 +226,6 @@ export function ExamSimulator({ loaded }: Props) {
     try {
       await saveAnswersAction(fd);
     } catch (e) {
-      // Si falla, volvemos a marcar como dirty
       dirty.forEach((id) => dirtyRef.current.add(id));
       console.error("Autosave failed:", e);
     }
@@ -129,19 +236,14 @@ export function ExamSimulator({ loaded }: Props) {
     return () => clearInterval(interval);
   }, [doSave]);
 
-  // Save al cambiar de pregunta o parte
   useEffect(() => {
     doSave();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePartIndex, activeQuestionIndex]);
 
-  // Save al descargar página / cambiar de pestaña
   useEffect(() => {
     const handler = () => {
-      // Usamos sendBeacon-like approach via un fetch síncrono (best effort)
-      if (dirtyRef.current.size > 0) {
-        doSave();
-      }
+      if (dirtyRef.current.size > 0) doSave();
     };
     window.addEventListener("beforeunload", handler);
     document.addEventListener("visibilitychange", () => {
@@ -150,7 +252,7 @@ export function ExamSimulator({ loaded }: Props) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [doSave]);
 
-  // ─── Timer tick ──────────────────────────────────────────────────
+  // ─── Timer tick + autoenvío en 0 ─────────────────────────────────
   useEffect(() => {
     if (autoSubmitted || submitting) return;
     const tick = setInterval(() => {
@@ -160,7 +262,6 @@ export function ExamSimulator({ loaded }: Props) {
     return () => clearInterval(tick);
   }, [autoSubmitted, submitting]);
 
-  // Autoenvío al llegar a 0
   useEffect(() => {
     if (remainingSec === 0 && !autoSubmitted && !submitting) {
       setAutoSubmitted(true);
@@ -173,14 +274,12 @@ export function ExamSimulator({ loaded }: Props) {
     async (auto = false) => {
       if (submitting) return;
       setSubmitting(true);
-      // Guardar respuestas pendientes primero
       await doSave();
       const fd = new FormData();
       fd.append("attemptId", loaded.attempt.id);
       try {
         await submitAttemptAction({ error: null }, fd);
       } catch (e) {
-        // submit hace redirect, esto casi nunca se ejecuta
         console.error("Submit failed:", e);
         setSubmitting(false);
         alert(
@@ -193,7 +292,7 @@ export function ExamSimulator({ loaded }: Props) {
     [doSave, loaded.attempt.id, submitting]
   );
 
-  // ─── Estadísticas de progreso ────────────────────────────────────
+  // ─── Progreso ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
     let answered = 0;
     let total = 0;
@@ -212,7 +311,7 @@ export function ExamSimulator({ loaded }: Props) {
     return { answered, total };
   }, [answers, loaded.parts]);
 
-  const isTimeWarning = remainingSec < 300; // últimos 5 min
+  const isTimeWarning = remainingSec < 300;
   const isTimeCritical = remainingSec < 60;
 
   if (!activePart) {
@@ -226,16 +325,18 @@ export function ExamSimulator({ loaded }: Props) {
   const matchingOptions =
     (settings.matching_options as Array<{ letter: string; text: string }>) ?? [];
 
-  // Total de preguntas antes de esta parte (para la numeración global)
-  let questionOffset = 0;
-  for (let i = 0; i < activePartIndex; i++) {
-    questionOffset += loaded.parts[i].questions.length;
-  }
+  const theme = THEME_STYLES[colorTheme];
+  const fontClass = FONT_SIZE_CLASSES[fontSize];
 
   return (
-    <div className="flex flex-col h-screen bg-paper">
+    <div
+      className={`sim-root ${fontClass} flex flex-col h-screen ${theme.bg} ${theme.text}`}
+      data-theme={colorTheme}
+    >
       {/* Header estilo Cambridge Digital */}
-      <header className="bg-white border-b-2 border-navy px-6 py-3 flex items-center justify-between shrink-0">
+      <header
+        className={`${theme.panelBg} border-b-2 border-navy px-6 py-3 flex items-center justify-between shrink-0`}
+      >
         <div className="flex items-center gap-6">
           <span className="font-semibold text-navy text-lg tracking-tight">
             Acertl<span className="border-b-2 border-saffron pb-0.5">i</span>o
@@ -244,72 +345,89 @@ export function ExamSimulator({ loaded }: Props) {
             <span className="text-xs text-muted uppercase tracking-wider">
               Candidate
             </span>
-            <span className="text-sm font-mono text-ink">
-              {loaded.student.full_name}
-            </span>
+            <span className="text-sm font-mono">{loaded.student.full_name}</span>
           </div>
-          <div className="hidden md:flex flex-col leading-tight">
+          <div className="hidden lg:flex flex-col leading-tight">
             <span className="text-xs text-muted uppercase tracking-wider">
               Exam
             </span>
-            <span className="text-sm font-mono text-ink">
-              {loaded.exam.title}
-            </span>
+            <span className="text-sm font-mono">{loaded.exam.title}</span>
           </div>
         </div>
 
-        {/* Timer */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Timer */}
           {showTimer ? (
-            <div
-              className={`px-4 py-2 rounded font-mono text-lg font-bold tabular-nums ${
-                isTimeCritical
-                  ? "bg-bad text-white animate-pulse"
-                  : isTimeWarning
-                  ? "bg-saffron text-white"
-                  : "bg-navy text-white"
-              }`}
-            >
-              {formatTime(remainingSec)}
+            <div className="flex items-center gap-1.5">
+              <div
+                className={`px-3 py-1.5 rounded font-mono text-base md:text-lg font-bold tabular-nums ${
+                  isTimeCritical
+                    ? "bg-bad text-white animate-pulse"
+                    : isTimeWarning
+                    ? "bg-saffron text-white"
+                    : "bg-navy text-white"
+                }`}
+              >
+                {formatTime(remainingSec)}
+              </div>
+              <button
+                onClick={() => setShowTimer(false)}
+                className="text-xs text-muted hover:text-ink hidden md:block"
+                title="Ocultar el reloj"
+              >
+                Ocultar
+              </button>
             </div>
           ) : (
             <button
               onClick={() => setShowTimer(true)}
-              className="px-4 py-2 rounded bg-navy-50 text-navy text-sm inline-flex items-center gap-2"
+              className="px-3 py-1.5 rounded bg-navy-50 text-navy text-sm inline-flex items-center gap-1.5"
             >
               <Clock className="h-4 w-4" />
-              Mostrar tiempo
+              <span className="hidden md:inline">Mostrar tiempo</span>
             </button>
           )}
-          {showTimer && (
-            <button
-              onClick={() => setShowTimer(false)}
-              className="text-xs text-muted hover:text-ink"
-              title="Ocultar el reloj"
-            >
-              Ocultar
-            </button>
-          )}
+
+          {/* Botón Ajustes accesibilidad */}
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded hover:bg-paper lg:hidden"
-            aria-label="Toggle navigation"
+            onClick={() => setShowAccessibility(true)}
+            className={`p-2 rounded border-2 ${theme.panelBorder} hover:border-navy`}
+            aria-label="Ajustes de pantalla"
+            title="Tamaño de letra y color de fondo"
           >
-            <Menu className="h-5 w-5 text-ink" />
+            <Settings2 className="h-4 w-4" />
+          </button>
+
+          {/* Botón Pantalla completa */}
+          <button
+            onClick={toggleFullscreen}
+            className={`p-2 rounded border-2 ${theme.panelBorder} hover:border-navy`}
+            aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
           </button>
         </div>
       </header>
 
-      {/* Aviso de tiempo si <5min */}
+      {/* Aviso de tiempo */}
       {isTimeWarning && !isTimeCritical && (
-        <div className="bg-saffron/10 border-b border-saffron/30 px-6 py-2 text-sm text-ink flex items-center gap-2">
+        <div className="bg-saffron/10 border-b border-saffron/30 px-6 py-2 text-sm flex items-center gap-2 shrink-0">
           <AlertTriangle className="h-4 w-4 text-saffron shrink-0" />
-          <span>Quedan menos de 5 minutos. El examen se enviará automáticamente cuando llegue a 0.</span>
+          <span>
+            Quedan menos de 5 minutos. El examen se enviará automáticamente cuando llegue a 0.
+          </span>
         </div>
       )}
 
       {/* Barra de partes */}
-      <nav className="bg-white border-b border-rule px-6 py-2 flex items-center gap-1 overflow-x-auto shrink-0">
+      <nav
+        className={`${theme.panelBg} border-b ${theme.panelBorder} px-6 py-2 flex items-center gap-1 overflow-x-auto shrink-0`}
+      >
         {loaded.parts.map((p, i) => {
           const isActive = i === activePartIndex;
           return (
@@ -331,152 +449,149 @@ export function ExamSimulator({ loaded }: Props) {
         })}
       </nav>
 
-      {/* Main + Sidebar */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Área principal: contenido de la parte + pregunta activa */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
-            {/* Header de la parte */}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted">
-                Part {activePart.part_number} — {activePart.skill.replace("_", " ")}
+      {/* Área principal — SIN sidebar derecho ya, el rail está abajo */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted">
+              Part {activePart.part_number} — {activePart.skill.replace("_", " ")}
+            </p>
+            <h1 className="sim-h1 font-semibold mt-1">{activePart.title}</h1>
+            {activePart.instructions && (
+              <p className="mt-3 sim-instructions bg-navy-50/50 border-l-3 border-navy px-4 py-2 rounded-r">
+                {activePart.instructions}
               </p>
-              <h1 className="text-2xl font-semibold text-ink mt-1">
-                {activePart.title}
-              </h1>
-              {activePart.instructions && (
-                <p className="mt-3 text-sm text-ink bg-navy-50/50 border-l-3 border-navy px-4 py-2 rounded-r">
-                  {activePart.instructions}
-                </p>
-              )}
+            )}
+          </div>
+
+          {readingText && (
+            <div className={`rounded border ${theme.panelBorder} ${theme.panelBg} p-6`}>
+              <p className="sim-text leading-relaxed whitespace-pre-wrap font-serif">
+                {readingText}
+              </p>
             </div>
+          )}
 
-            {/* Texto de lectura si aplica (Part 3 A2, Part 5 C1) */}
-            {readingText && (
-              <div className="rounded border border-rule bg-white p-6">
-                <p className="text-[15px] leading-relaxed text-ink whitespace-pre-wrap font-serif">
-                  {readingText}
-                </p>
-              </div>
-            )}
-
-            {/* Texto con gaps si aplica (cloze parts) */}
-            {baseText && (
-              <div className="rounded border border-rule bg-white p-6">
-                <p className="text-[15px] leading-relaxed text-ink whitespace-pre-wrap font-serif">
-                  {baseText}
-                </p>
-              </div>
-            )}
-
-            {/* Opciones de matching si aplica (Part 2 A2) */}
-            {matchingOptions.length > 0 && (
-              <details open className="rounded border border-rule bg-white p-4">
-                <summary className="cursor-pointer text-sm font-medium text-navy mb-2">
-                  Textos (A–{matchingOptions[matchingOptions.length - 1].letter})
-                </summary>
-                <ul className="mt-3 space-y-3 text-[14px] leading-relaxed">
-                  {matchingOptions.map((opt) => (
-                    <li key={opt.letter} className="flex gap-3">
-                      <span className="font-mono font-semibold text-navy shrink-0 w-6">
-                        {opt.letter}
-                      </span>
-                      <span className="text-ink">{opt.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-
-            {/* Pregunta activa */}
-            <div className="rounded-lg border border-rule bg-white p-6">
-              {activeQuestion ? (
-                <QuestionRenderer
-                  question={activeQuestion}
-                  answer={answers.get(activeQuestion.id) ?? { answerText: null, selectedOptionId: null }}
-                  matchingOptions={matchingOptions}
-                  onUpdate={(next) => updateAnswer(activeQuestion.id, next)}
-                />
-              ) : (
-                <p className="text-sm text-muted">No hay pregunta activa.</p>
-              )}
+          {baseText && (
+            <div className={`rounded border ${theme.panelBorder} ${theme.panelBg} p-6`}>
+              <p className="sim-text leading-relaxed whitespace-pre-wrap font-serif">
+                {baseText}
+              </p>
             </div>
+          )}
 
-            {/* Navegación previous/next */}
-            <div className="flex items-center justify-between pt-4">
+          {matchingOptions.length > 0 && (
+            <details open className={`rounded border ${theme.panelBorder} ${theme.panelBg} p-4`}>
+              <summary className="cursor-pointer text-sm font-medium text-navy mb-2">
+                Textos (A–{matchingOptions[matchingOptions.length - 1].letter})
+              </summary>
+              <ul className="mt-3 space-y-3 sim-text leading-relaxed">
+                {matchingOptions.map((opt) => (
+                  <li key={opt.letter} className="flex gap-3">
+                    <span className="font-mono font-semibold text-navy shrink-0 w-6">
+                      {opt.letter}
+                    </span>
+                    <span>{opt.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          <div className={`rounded-lg border ${theme.panelBorder} ${theme.panelBg} p-6`}>
+            {activeQuestion ? (
+              <QuestionRenderer
+                question={activeQuestion}
+                answer={
+                  answers.get(activeQuestion.id) ?? {
+                    answerText: null,
+                    selectedOptionId: null,
+                  }
+                }
+                matchingOptions={matchingOptions}
+                onUpdate={(next) => updateAnswer(activeQuestion.id, next)}
+              />
+            ) : (
+              <p className="text-sm text-muted">No hay pregunta activa.</p>
+            )}
+          </div>
+
+          {/* Navegación previous/next */}
+          <div className="flex items-center justify-between pt-4">
+            <button
+              onClick={() => {
+                if (activeQuestionIndex > 0) {
+                  setActiveQuestionIndex(activeQuestionIndex - 1);
+                } else if (activePartIndex > 0) {
+                  const prevPart = loaded.parts[activePartIndex - 1];
+                  setActivePartIndex(activePartIndex - 1);
+                  setActiveQuestionIndex(prevPart.questions.length - 1);
+                }
+              }}
+              disabled={activePartIndex === 0 && activeQuestionIndex === 0}
+              className={`px-4 py-2 rounded border-2 ${theme.panelBorder} text-sm font-medium hover:border-navy disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              ← Anterior
+            </button>
+
+            <span className="text-xs text-muted hidden sm:inline">
+              Pregunta {activeQuestionIndex + 1} de {activePart.questions.length} en esta parte
+            </span>
+
+            {activeQuestionIndex < activePart.questions.length - 1 ||
+            activePartIndex < loaded.parts.length - 1 ? (
               <button
                 onClick={() => {
-                  if (activeQuestionIndex > 0) {
-                    setActiveQuestionIndex(activeQuestionIndex - 1);
-                  } else if (activePartIndex > 0) {
-                    const prevPart = loaded.parts[activePartIndex - 1];
-                    setActivePartIndex(activePartIndex - 1);
-                    setActiveQuestionIndex(prevPart.questions.length - 1);
+                  if (activeQuestionIndex < activePart.questions.length - 1) {
+                    setActiveQuestionIndex(activeQuestionIndex + 1);
+                  } else if (activePartIndex < loaded.parts.length - 1) {
+                    setActivePartIndex(activePartIndex + 1);
+                    setActiveQuestionIndex(0);
                   }
                 }}
-                disabled={activePartIndex === 0 && activeQuestionIndex === 0}
-                className="px-4 py-2 rounded border-2 border-rule text-sm font-medium hover:border-navy disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded bg-navy text-white text-sm font-medium hover:bg-navy-600"
               >
-                ← Anterior
+                Siguiente →
               </button>
-
-              <span className="text-xs text-muted">
-                Pregunta {activeQuestionIndex + 1} de {activePart.questions.length} en esta parte
-              </span>
-
-              {activeQuestionIndex < activePart.questions.length - 1 ||
-              activePartIndex < loaded.parts.length - 1 ? (
-                <button
-                  onClick={() => {
-                    if (activeQuestionIndex < activePart.questions.length - 1) {
-                      setActiveQuestionIndex(activeQuestionIndex + 1);
-                    } else if (activePartIndex < loaded.parts.length - 1) {
-                      setActivePartIndex(activePartIndex + 1);
-                      setActiveQuestionIndex(0);
-                    }
-                  }}
-                  className="px-4 py-2 rounded bg-navy text-white text-sm font-medium hover:bg-navy-600"
-                >
-                  Siguiente →
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowSubmitConfirm(true)}
-                  className="px-4 py-2 rounded bg-saffron text-white text-sm font-medium hover:bg-saffron/90 inline-flex items-center gap-2"
-                >
-                  <Send className="h-4 w-4" />
-                  Enviar examen
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                onClick={() => setShowSubmitConfirm(true)}
+                className="px-4 py-2 rounded bg-saffron text-white text-sm font-medium hover:bg-saffron/90 inline-flex items-center gap-2"
+              >
+                <Send className="h-4 w-4" />
+                Enviar examen
+              </button>
+            )}
           </div>
-        </main>
+        </div>
+      </main>
 
-        {/* Sidebar de navegación */}
-        <aside
-          className={`${
-            sidebarOpen ? "translate-x-0" : "translate-x-full"
-          } lg:translate-x-0 fixed lg:static right-0 top-0 h-full lg:h-auto w-72 bg-white border-l border-rule shrink-0 overflow-y-auto transition-transform z-40`}
-        >
-          <div className="p-4 border-b border-rule flex items-center justify-between lg:justify-start gap-2">
-            <h3 className="text-sm font-medium text-ink">
-              Progreso · {stats.answered}/{stats.total}
-            </h3>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 hover:bg-paper rounded"
-            >
-              <X className="h-4 w-4 text-muted" />
-            </button>
+      {/* ─── RAIL DE PROGRESO INFERIOR ──────────────────────────── */}
+      <footer
+        className={`${theme.panelBg} border-t-2 border-navy shrink-0`}
+      >
+        <div className="px-4 py-2 flex items-center gap-3 overflow-hidden">
+          {/* Contador */}
+          <div className="shrink-0 hidden md:flex flex-col leading-tight">
+            <span className="text-[10px] uppercase tracking-wider text-muted">
+              Progreso
+            </span>
+            <span className="text-xs font-mono font-semibold">
+              {stats.answered}/{stats.total}
+            </span>
           </div>
 
-          <div className="p-4 space-y-4">
-            {loaded.parts.map((part, pIdx) => (
-              <div key={part.id}>
-                <p className="text-xs uppercase tracking-wider text-muted mb-2">
-                  Part {part.part_number}
-                </p>
-                <div className="grid grid-cols-6 gap-1.5">
+          {/* Rail horizontal con TODAS las preguntas de todas las partes */}
+          <div className="flex-1 overflow-x-auto">
+            <div className="flex items-center gap-1 py-1">
+              {loaded.parts.map((part, pIdx) => (
+                <div key={part.id} className="flex items-center gap-1 shrink-0">
+                  {pIdx > 0 && (
+                    <div className={`w-px h-6 ${theme.panelBorder.replace("border-", "bg-")} mx-1`} />
+                  )}
+                  <span className="text-[10px] font-mono text-muted mr-1 shrink-0">
+                    P{part.part_number}
+                  </span>
                   {part.questions.map((q, qIdx) => {
                     const a = answers.get(q.id);
                     const isAnswered =
@@ -491,45 +606,57 @@ export function ExamSimulator({ loaded }: Props) {
                         onClick={() => {
                           setActivePartIndex(pIdx);
                           setActiveQuestionIndex(qIdx);
-                          setSidebarOpen(false);
                         }}
-                        className={`h-8 text-xs font-mono font-medium rounded transition-colors ${
+                        className={`shrink-0 w-7 h-7 text-[11px] font-mono font-medium rounded transition-colors ${
                           isCurrent
                             ? "bg-navy text-white ring-2 ring-navy/40 ring-offset-1"
                             : isAnswered
                             ? "bg-ok/20 text-ok border border-ok/40"
                             : "bg-paper text-muted border border-rule hover:border-navy/40"
                         }`}
-                        aria-label={`Pregunta ${q.question_number}`}
+                        aria-label={`Ir a la pregunta ${q.question_number}`}
                       >
                         {q.question_number}
                       </button>
                     );
                   })}
                 </div>
-              </div>
-            ))}
-
-            <button
-              onClick={() => setShowSubmitConfirm(true)}
-              className="w-full mt-4 px-4 py-3 rounded bg-saffron text-white text-sm font-medium hover:bg-saffron/90 inline-flex items-center justify-center gap-2"
-            >
-              <Send className="h-4 w-4" />
-              Enviar examen
-            </button>
+              ))}
+            </div>
           </div>
-        </aside>
-      </div>
+
+          {/* Botón enviar en el rail */}
+          <button
+            onClick={() => setShowSubmitConfirm(true)}
+            className="shrink-0 h-8 px-3 rounded bg-saffron text-white text-xs font-medium hover:bg-saffron/90 inline-flex items-center gap-1.5"
+          >
+            <Send className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Enviar</span>
+          </button>
+        </div>
+      </footer>
+
+      {/* Panel de accesibilidad */}
+      <AccessibilityPanel
+        open={showAccessibility}
+        onClose={() => setShowAccessibility(false)}
+        fontSize={fontSize}
+        onFontSizeChange={handleFontSizeChange}
+        colorTheme={colorTheme}
+        onColorThemeChange={handleColorThemeChange}
+      />
 
       {/* Modal de confirmación de envío */}
       {showSubmitConfirm && (
         <div className="fixed inset-0 bg-ink/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-lg font-semibold text-ink mb-2">
-              ¿Enviar el examen?
-            </h2>
+          <div className={`${theme.panelBg} rounded-lg max-w-md w-full p-6 border ${theme.panelBorder}`}>
+            <h2 className="text-lg font-semibold mb-2">¿Enviar el examen?</h2>
             <p className="text-sm text-muted mb-4">
-              Has respondido <strong className="text-ink">{stats.answered} de {stats.total}</strong> preguntas.
+              Has respondido{" "}
+              <strong className={theme.text}>
+                {stats.answered} de {stats.total}
+              </strong>{" "}
+              preguntas.
               {stats.answered < stats.total && (
                 <>
                   {" "}
@@ -545,7 +672,7 @@ export function ExamSimulator({ loaded }: Props) {
               <button
                 onClick={() => setShowSubmitConfirm(false)}
                 disabled={submitting}
-                className="px-4 py-2 rounded border-2 border-rule text-sm font-medium hover:border-navy"
+                className={`px-4 py-2 rounded border-2 ${theme.panelBorder} text-sm font-medium hover:border-navy`}
               >
                 Seguir contestando
               </button>
@@ -569,14 +696,6 @@ export function ExamSimulator({ loaded }: Props) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Overlay para móvil cuando sidebar abierto */}
-      {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-ink/40 z-30"
-          onClick={() => setSidebarOpen(false)}
-        />
       )}
     </div>
   );

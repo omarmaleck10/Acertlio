@@ -46,9 +46,11 @@ export function InviteForm({ kind }: Props) {
             className="h-10 w-full rounded border border-rule bg-white px-3 text-sm text-ink focus:outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
           >
             <option value="">Sin asignar</option>
+            <option value="A2">A2 Key</option>
             <option value="B1">B1 Preliminary</option>
             <option value="B2">B2 First</option>
             <option value="C1">C1 Advanced</option>
+            <option value="C2">C2 Proficiency</option>
           </select>
         </div>
       )}

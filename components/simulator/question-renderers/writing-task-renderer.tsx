@@ -57,7 +57,7 @@ export function WritingTaskRenderer({
     <div className="space-y-5">
       {/* Instrucciones */}
       <div className="rounded border-2 border-navy/20 bg-white px-5 py-4">
-        <p className="text-[15px] text-ink leading-relaxed whitespace-pre-wrap">
+        <p className="sim-text whitespace-pre-wrap">
           {question.stem}
         </p>
 
@@ -67,7 +67,7 @@ export function WritingTaskRenderer({
             <p className="text-xs uppercase tracking-wider text-muted mb-2 font-medium">
               Texto de entrada
             </p>
-            <p className="text-[14px] text-ink leading-relaxed whitespace-pre-wrap font-serif">
+            <p className="sim-text whitespace-pre-wrap font-serif">
               {ctx.input_text}
             </p>
           </div>
@@ -118,7 +118,7 @@ export function WritingTaskRenderer({
           onChange={(e) => onChange(e.target.value)}
           rows={12}
           placeholder="Escribe aquí tu respuesta…"
-          className="w-full rounded border-2 border-rule bg-white px-4 py-3 text-[15px] leading-relaxed font-serif focus:outline-none focus:border-navy focus:ring-2 focus:ring-navy/10 resize-y"
+          className="w-full rounded border-2 border-rule bg-white px-4 py-3 sim-text font-serif focus:outline-none focus:border-navy focus:ring-2 focus:ring-navy/10 resize-y"
         />
         <div className="mt-2 flex items-center justify-between text-xs">
           <span className={`font-mono font-semibold ${statusColor}`}>

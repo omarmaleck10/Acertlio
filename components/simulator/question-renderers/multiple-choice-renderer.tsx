@@ -29,13 +29,13 @@ export function MultipleChoiceRenderer({
     <div className="space-y-5">
       {/* Notice / message si aplica */}
       {showNotice && noticeText && (
-        <div className="rounded border-2 border-navy/20 bg-white px-5 py-4 font-serif text-[15px] leading-relaxed text-ink whitespace-pre-wrap">
+        <div className="rounded border-2 border-navy/20 bg-white px-5 py-4 font-serif sim-text whitespace-pre-wrap">
           {noticeText}
         </div>
       )}
 
       {/* Enunciado */}
-      <p className="text-[15px] font-medium text-ink leading-relaxed">
+      <p className="sim-text font-medium">
         <span className="font-mono text-navy mr-2">
           {question.question_number}.
         </span>
@@ -66,7 +66,7 @@ export function MultipleChoiceRenderer({
               <span className="font-mono font-medium text-navy w-5 shrink-0">
                 {opt.letter}
               </span>
-              <span className="text-[14px] text-ink leading-relaxed">
+              <span className="sim-text">
                 {opt.text}
               </span>
             </label>
