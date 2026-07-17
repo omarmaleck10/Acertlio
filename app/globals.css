@@ -40,3 +40,75 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   Simulador de examen — clases de tamaño de letra escalable
+   ============================================================ */
+.sim-root {
+  /* variables base que las clases sim-fs-* sobrescriben */
+  --sim-text-size: 15px;
+  --sim-text-lh: 1.6;
+  --sim-h1-size: 24px;
+  --sim-instructions-size: 14px;
+}
+
+.sim-fs-sm {
+  --sim-text-size: 13px;
+  --sim-text-lh: 1.55;
+  --sim-h1-size: 20px;
+  --sim-instructions-size: 12px;
+}
+
+.sim-fs-base {
+  --sim-text-size: 15px;
+  --sim-text-lh: 1.6;
+  --sim-h1-size: 24px;
+  --sim-instructions-size: 14px;
+}
+
+.sim-fs-lg {
+  --sim-text-size: 17px;
+  --sim-text-lh: 1.65;
+  --sim-h1-size: 28px;
+  --sim-instructions-size: 15px;
+}
+
+.sim-fs-xl {
+  --sim-text-size: 19px;
+  --sim-text-lh: 1.7;
+  --sim-h1-size: 32px;
+  --sim-instructions-size: 17px;
+}
+
+.sim-root .sim-text,
+.sim-root .sim-text p {
+  font-size: var(--sim-text-size);
+  line-height: var(--sim-text-lh);
+}
+
+.sim-root .sim-h1 {
+  font-size: var(--sim-h1-size);
+  line-height: 1.2;
+}
+
+.sim-root .sim-instructions {
+  font-size: var(--sim-instructions-size);
+  line-height: 1.55;
+}
+
+/* En temas oscuros, ajustar cajas y bordes */
+.sim-root[data-theme="dark"] .bg-navy-50 { background-color: rgba(30, 58, 138, 0.15); }
+.sim-root[data-theme="dark"] .bg-navy-50\/50 { background-color: rgba(30, 58, 138, 0.1); }
+.sim-root[data-theme="dark"] .bg-paper { background-color: #262626; }
+.sim-root[data-theme="dark"] .border-rule { border-color: #3A3A3A; }
+.sim-root[data-theme="dark"] .text-muted { color: #A0A0A0; }
+.sim-root[data-theme="dark"] .text-ink { color: #F5F5F5; }
+
+/* En sepia, ajustar tonos */
+.sim-root[data-theme="sepia"] .bg-paper { background-color: #EBDDBE; }
+.sim-root[data-theme="sepia"] .bg-navy-50 { background-color: rgba(30, 58, 138, 0.08); }
+.sim-root[data-theme="sepia"] .bg-navy-50\/50 { background-color: rgba(30, 58, 138, 0.05); }
+
+/* Alto contraste: reforzar bordes */
+.sim-root[data-theme="high-contrast"] .border-rule { border-color: #000000; }
+.sim-root[data-theme="high-contrast"] .text-muted { color: #333333; }

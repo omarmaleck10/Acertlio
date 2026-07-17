@@ -58,9 +58,11 @@ export default function EmpezarAlumnoPage() {
               id="level"
               className="h-10 w-full rounded border border-rule bg-white px-3 text-sm text-ink focus:outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
             >
+              <option>A2 Key</option>
               <option>B1 Preliminary</option>
               <option>B2 First</option>
               <option>C1 Advanced</option>
+              <option>C2 Proficiency</option>
               <option>Aún no lo sé</option>
             </select>
           </div>
