@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { gradeAttempt } from "@/lib/exams/grader";
 
 export type SimulatorResult = {
   error: string | null;
@@ -218,6 +219,7 @@ export async function submitAttemptAction(
   const isSuperAdmin = profile?.role === "super_admin";
   if (!isOwner && !isSuperAdmin) return { error: "Sin permiso." };
 
+  // Primer paso: marcar como submitted con timestamp
   await admin
     .from("attempts")
     .update({
@@ -226,6 +228,17 @@ export async function submitAttemptAction(
       updated_at: new Date().toISOString(),
     })
     .eq("id", attemptId);
+
+  // Segundo paso: autocorregir todas las preguntas objetivas.
+  // El grader actualizará el status a "auto_graded" si no hay Writing pendiente,
+  // o lo dejará como "submitted" si hay Writings esperando corrección manual.
+  try {
+    await gradeAttempt(attemptId);
+  } catch (e) {
+    console.error("Grader failed:", e);
+    // Si falla el grader, el attempt queda como submitted pero sin corregir.
+    // El profesor podrá corregirlo manualmente.
+  }
 
   revalidatePath(`/alumno/examen/${attemptId}`);
   revalidatePath("/alumno");
