@@ -336,6 +336,13 @@ export default async function ExamenEnviadoPage({
         {/* CTA */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
+            href={`/alumno/examen/${attempt.id}/revisar`}
+            className="inline-flex items-center gap-2 h-11 px-5 rounded border-2 border-navy text-navy text-sm font-medium hover:bg-navy-50"
+          >
+            <BookOpen className="h-4 w-4" />
+            Revisar respuestas
+          </Link>
+          <Link
             href="/alumno"
             className="inline-flex items-center gap-2 h-11 px-5 rounded bg-navy text-white text-sm font-medium hover:bg-navy-600"
           >
