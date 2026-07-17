@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { BookOpenCheck, History, BarChart3, Play } from "lucide-react";
+import { BookOpenCheck, Play, Clock, CheckCircle2, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/user";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AlumnoResumenPage() {
   const supabase = createClient();
   const user = await getCurrentUser();
   if (!user) return null;
 
-  // Nombre de la academia
   const { data: academy } = user.profile.academy_id
     ? await supabase
         .from("academies")
@@ -17,155 +17,215 @@ export default async function AlumnoResumenPage() {
         .single()
     : { data: null };
 
-  // Su profesor (si le han asignado)
-  const { data: teacherRel } = await supabase
-    .from("teacher_students")
-    .select("teacher_id")
-    .eq("student_id", user.id)
-    .maybeSingle();
+  const admin = createAdminClient();
+  const level = (user.profile as unknown as Record<string, unknown>).level as string | null | undefined;
 
-  const { data: teacher } = teacherRel
-    ? await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("id", teacherRel.teacher_id)
-        .single()
-    : { data: null };
+  let examsQuery = admin
+    .from("exams")
+    .select("id, title, description, level, mock_number, total_time_minutes")
+    .eq("is_published", true)
+    .order("level", { ascending: true })
+    .order("mock_number", { ascending: true });
+
+  if (level) {
+    examsQuery = examsQuery.eq("level", level);
+  }
+
+  const { data: availableExams } = await examsQuery;
+
+  const { data: attempts } = await admin
+    .from("attempts")
+    .select("id, exam_id, status, started_at, submitted_at, exams(title, level)")
+    .eq("student_id", user.id)
+    .order("started_at", { ascending: false });
+
+  const inProgress = (attempts ?? []).filter((a) => a.status === "in_progress");
+  const submitted = (attempts ?? []).filter((a) => a.status !== "in_progress");
+  const inProgressExamIds = new Set(inProgress.map((a) => a.exam_id));
 
   return (
-    <div className="px-8 py-8 max-w-4xl">
+    <div className="px-6 md:px-8 py-8 max-w-6xl">
       <header className="mb-8">
-        <p className="text-xs uppercase tracking-wider text-muted">Panel alumno</p>
-        <h1 className="font-semibold text-3xl text-ink tracking-tight mt-1">
+        <p className="text-xs uppercase tracking-wider text-muted">
+          {academy?.name ?? "Acertlio"} · Alumno
+        </p>
+        <h1 className="text-3xl font-semibold text-ink tracking-tight mt-1">
           Hola, {user.profile.full_name?.split(" ")[0] ?? "alumno"}
         </h1>
         <p className="text-sm text-muted mt-2">
-          {academy?.name ? `${academy.name} · ` : ""}
-          Nivel de preparación:{" "}
-          <span className="text-navy font-medium">
-            {user.profile.current_level ?? "Sin asignar"}
-          </span>
+          {level ? (
+            <>Preparación para el nivel <strong className="text-navy">{level}</strong>.</>
+          ) : (
+            "Aquí tienes los simulacros disponibles para tu preparación."
+          )}
         </p>
       </header>
 
-      {/* Card grande CTA */}
-      <section className="rounded border border-rule bg-white p-8 mb-8 flex items-center justify-between gap-6">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-saffron mb-2">
-            Próximo simulacro
-          </p>
-          <h2 className="text-xl font-semibold text-ink mb-1">
-            Aún no tienes simulacros asignados
+      {inProgress.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-medium text-ink mb-3 uppercase tracking-wider flex items-center gap-2">
+            <Clock className="h-4 w-4 text-saffron" />
+            Continúa donde lo dejaste
           </h2>
-          <p className="text-sm text-muted">
-            Cuando tu profesor te asigne un mock, aparecerá aquí.
-          </p>
-        </div>
-        <button
-          disabled
-          className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-navy/40 text-white text-sm font-medium rounded cursor-not-allowed"
-        >
-          <Play className="h-4 w-4" />
-          Empezar
-        </button>
+          <div className="space-y-3">
+            {inProgress.map((att) => {
+              const examData = Array.isArray(att.exams) ? att.exams[0] : att.exams;
+              return (
+                <Link
+                  key={att.id}
+                  href={`/alumno/examen/${att.id}`}
+                  className="block bg-white rounded-lg border-2 border-saffron/40 hover:border-saffron p-4 transition-colors group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-saffron font-medium">
+                        En curso · {examData?.level}
+                      </p>
+                      <p className="text-base font-medium text-ink mt-0.5">
+                        {examData?.title ?? "Examen"}
+                      </p>
+                      <p className="text-xs text-muted mt-1">
+                        Empezado {new Date(att.started_at).toLocaleString("es-ES", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <div className="inline-flex items-center gap-1 text-sm font-medium text-saffron group-hover:gap-2 transition-all">
+                      Continuar
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="mb-8">
+        <h2 className="text-sm font-medium text-ink mb-3 uppercase tracking-wider flex items-center gap-2">
+          <BookOpenCheck className="h-4 w-4 text-navy" />
+          Simulacros disponibles
+        </h2>
+
+        {(availableExams?.filter((e) => !inProgressExamIds.has(e.id)) ?? []).length === 0 ? (
+          <div className="bg-white rounded-lg border border-rule p-6 text-center">
+            <p className="text-sm text-muted">
+              No hay simulacros disponibles para ti todavía. Tu profesor te
+              asignará exámenes pronto.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(availableExams ?? [])
+              .filter((e) => !inProgressExamIds.has(e.id))
+              .map((exam) => (
+                <Link
+                  key={exam.id}
+                  href={`/alumno/examen/inicio/${exam.id}`}
+                  className="block bg-white rounded-lg border border-rule hover:border-navy p-4 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs uppercase tracking-wider text-navy font-medium">
+                      {exam.level} · Mock {exam.mock_number ?? "—"}
+                    </span>
+                    <span className="text-xs text-muted">
+                      {exam.total_time_minutes} min
+                    </span>
+                  </div>
+                  <p className="text-base font-medium text-ink group-hover:text-navy transition-colors">
+                    {exam.title}
+                  </p>
+                  {exam.description && (
+                    <p className="text-xs text-muted mt-1 line-clamp-2">
+                      {exam.description}
+                    </p>
+                  )}
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-sm text-navy font-medium">
+                    <Play className="h-3.5 w-3.5" />
+                    Empezar
+                  </div>
+                </Link>
+              ))}
+          </div>
+        )}
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
-        <StatCard
-          icon={<BookOpenCheck className="h-4 w-4" />}
-          label="Simulacros"
-          value="0"
-          hint="Asignados y pendientes"
-          href="/alumno/simulacros"
-        />
-        <StatCard
-          icon={<History className="h-4 w-4" />}
-          label="Historial"
-          value="0"
-          hint="Intentos completados"
-          href="/alumno/historial"
-        />
-        <StatCard
-          icon={<BarChart3 className="h-4 w-4" />}
-          label="Puntuación"
-          value="—"
-          hint="Sin datos aún"
-          href="/alumno/progreso"
-        />
-      </div>
-
-      {/* Info profesor y academia */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded border border-rule bg-white p-5">
-          <h3 className="text-xs uppercase tracking-wider text-muted mb-3">
-            Tu profesor
-          </h3>
-          {teacher ? (
-            <>
-              <p className="text-sm text-ink font-medium">
-                {teacher.full_name ?? "Sin nombre"}
-              </p>
-              <p className="text-xs text-muted font-mono mt-1">
-                {teacher.email}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted">
-              Aún no tienes profesor asignado. Tu academia te lo asignará pronto.
-            </p>
-          )}
+      {submitted.length > 0 && (
+        <section>
+          <h2 className="text-sm font-medium text-ink mb-3 uppercase tracking-wider flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-ok" />
+            Exámenes completados
+          </h2>
+          <div className="bg-white rounded-lg border border-rule overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-paper text-xs uppercase tracking-wider text-muted">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">Examen</th>
+                  <th className="text-left px-4 py-2 font-medium">Enviado</th>
+                  <th className="text-left px-4 py-2 font-medium">Estado</th>
+                  <th className="text-right px-4 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule">
+                {submitted.map((att) => {
+                  const examData = Array.isArray(att.exams) ? att.exams[0] : att.exams;
+                  return (
+                    <tr key={att.id}>
+                      <td className="px-4 py-3">
+                        <p className="text-ink">{examData?.title ?? "—"}</p>
+                        <p className="text-xs text-muted">{examData?.level}</p>
+                      </td>
+                      <td className="px-4 py-3 text-muted text-xs">
+                        {att.submitted_at
+                          ? new Date(att.submitted_at).toLocaleString("es-ES", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 text-xs">
+                          {att.status === "submitted" && (
+                            <>
+                              <Clock className="h-3 w-3 text-saffron" />
+                              <span className="text-saffron">Pendiente de corregir</span>
+                            </>
+                          )}
+                          {att.status === "auto_graded" && (
+                            <>
+                              <CheckCircle2 className="h-3 w-3 text-navy" />
+                              <span className="text-navy">Autocorregido</span>
+                            </>
+                          )}
+                          {att.status === "fully_graded" && (
+                            <>
+                              <CheckCircle2 className="h-3 w-3 text-ok" />
+                              <span className="text-ok">Corregido</span>
+                            </>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          href={`/alumno/examen/${att.id}/enviado`}
+                          className="text-xs text-navy hover:underline"
+                        >
+                          Ver
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
-        <section className="rounded border border-rule bg-white p-5">
-          <h3 className="text-xs uppercase tracking-wider text-muted mb-3">
-            Cómo funciona
-          </h3>
-          <ul className="space-y-2 text-sm text-ink">
-            <li>1. Tu profesor te asigna un simulacro</li>
-            <li>2. Lo haces en el tiempo real del examen</li>
-            <li>3. Recibes tu puntuación Cambridge estimada</li>
-          </ul>
-        </section>
-      </div>
-
-      <div className="mt-8 pt-6 border-t border-rule">
-        <Link
-          href="/alumno/examen"
-          className="text-sm text-muted hover:text-navy inline-flex items-center gap-2"
-        >
-          <Play className="h-3.5 w-3.5" />
-          Ver una demo del simulador →
-        </Link>
-      </div>
+      )}
     </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  href,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded border border-rule bg-white p-4 hover:border-navy/40 transition-colors block"
-    >
-      <div className="flex items-center gap-2 text-muted mb-2">
-        {icon}
-        <span className="text-xs uppercase tracking-wider">{label}</span>
-      </div>
-      <p className="text-2xl font-semibold text-ink font-mono tabular-nums">
-        {value}
-      </p>
-      <p className="text-xs text-muted mt-1">{hint}</p>
-    </Link>
   );
 }
