@@ -54,36 +54,58 @@ export default async function ExamenEnviadoPage({
 
   const partIds = (parts ?? []).map((p) => p.id);
 
-  const [{ data: questions }, { data: answers }] = await Promise.all([
+  const [{ data: questions }, { data: answers }, { data: writingCorrections }] = await Promise.all([
     admin
       .from("questions")
-      .select("id, part_id, question_type, points")
+      .select("id, part_id, question_type, points, stem")
       .in("part_id", partIds),
     admin
       .from("answers")
-      .select("question_id, is_correct, points_earned")
+      .select("question_id, is_correct, points_earned, answer_text")
+      .eq("attempt_id", attempt.id),
+    admin
+      .from("writing_corrections")
+      .select("question_id, content_score, communicative_score, organisation_score, language_score, total_score, feedback, status, corrected_at, teacher_id")
       .eq("attempt_id", attempt.id),
   ]);
 
   const answersByQ = new Map(
     (answers ?? []).map((a) => [a.question_id, a])
   );
+  const correctionsByQ = new Map(
+    (writingCorrections ?? []).map((c) => [c.question_id, c])
+  );
 
   // Calcular desglose por parte
   const partBreakdown = (parts ?? []).map((part) => {
     const partQuestions = (questions ?? []).filter((q) => q.part_id === part.id);
-    const writingCount = partQuestions.filter(
+    const writingQs = partQuestions.filter(
       (q) => q.question_type === "writing_task"
-    ).length;
+    );
     const autoQuestions = partQuestions.filter(
       (q) => q.question_type !== "writing_task"
     );
     let correct = 0;
-    let total = autoQuestions.length;
+    const total = autoQuestions.length;
     for (const q of autoQuestions) {
       const a = answersByQ.get(q.id);
       if (a?.is_correct) correct++;
     }
+    // Info de Writings corregidos en la parte
+    let writingScore = 0;
+    let writingMax = 0;
+    let writingCorrectedCount = 0;
+    for (const wq of writingQs) {
+      const c = correctionsByQ.get(wq.id);
+      writingMax += 20;
+      if (c?.status === "completed") {
+        writingScore += c.total_score ?? 0;
+        writingCorrectedCount++;
+      }
+    }
+    const allWritingsCorrected =
+      writingQs.length > 0 && writingCorrectedCount === writingQs.length;
+
     return {
       id: part.id,
       partNumber: part.part_number,
@@ -91,8 +113,12 @@ export default async function ExamenEnviadoPage({
       skill: part.skill,
       correct,
       total,
-      writingCount,
-      isWritingPart: writingCount > 0,
+      writingCount: writingQs.length,
+      writingCorrectedCount,
+      writingScore,
+      writingMax,
+      allWritingsCorrected,
+      isWritingPart: writingQs.length > 0,
     };
   });
 
@@ -227,6 +253,19 @@ export default async function ExamenEnviadoPage({
           </div>
         )}
 
+        {isFullyGraded && (
+          <div className="rounded border border-ok/40 bg-ok/10 px-5 py-4 mb-6 flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-ok shrink-0 mt-0.5" />
+            <div className="text-sm text-ink">
+              <p className="font-medium">Examen totalmente corregido</p>
+              <p className="text-muted mt-1">
+                Tu profesor ha corregido el Writing. Abajo puedes ver el
+                desglose de tu nota por criterio y sus comentarios.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Desglose por parte */}
         <section className="bg-white rounded-lg border border-rule overflow-hidden mb-6">
           <header className="px-5 py-3 border-b border-rule bg-paper">
@@ -237,6 +276,10 @@ export default async function ExamenEnviadoPage({
           <div className="divide-y divide-rule">
             {partBreakdown.map((p) => {
               const pct = p.total > 0 ? Math.round((p.correct / p.total) * 100) : 0;
+              const writingPct =
+                p.writingMax > 0
+                  ? Math.round((p.writingScore / p.writingMax) * 100)
+                  : 0;
               return (
                 <div key={p.id} className="px-5 py-3 flex items-center gap-4">
                   <div className="w-16 shrink-0">
@@ -261,9 +304,31 @@ export default async function ExamenEnviadoPage({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-ink truncate">{p.title}</p>
                     {p.isWritingPart ? (
-                      <p className="text-xs text-saffron mt-0.5">
-                        Pendiente de corrección por tu profesor
-                      </p>
+                      p.allWritingsCorrected ? (
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="relative h-1.5 flex-1 max-w-[240px] rounded-full bg-rule overflow-hidden">
+                            <div
+                              className={`absolute inset-y-0 left-0 ${
+                                writingPct >= 60
+                                  ? "bg-ok"
+                                  : writingPct >= 40
+                                  ? "bg-saffron"
+                                  : "bg-bad"
+                              }`}
+                              style={{ width: `${writingPct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted font-mono">
+                            {writingPct}%
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-saffron mt-0.5">
+                          Pendiente de corrección por tu profesor
+                          {p.writingCorrectedCount > 0 &&
+                            ` · ${p.writingCorrectedCount}/${p.writingCount} corregidos`}
+                        </p>
+                      )
                     ) : (
                       <div className="mt-1 flex items-center gap-2">
                         <div className="relative h-1.5 flex-1 max-w-[240px] rounded-full bg-rule overflow-hidden">
@@ -281,7 +346,16 @@ export default async function ExamenEnviadoPage({
 
                   <div className="text-right shrink-0">
                     {p.isWritingPart ? (
-                      <span className="text-sm text-saffron font-mono">Pendiente</span>
+                      p.allWritingsCorrected ? (
+                        <span className="text-sm font-mono text-ink">
+                          {p.writingScore}
+                          <span className="text-muted">/{p.writingMax}</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-saffron font-mono">
+                          Pendiente
+                        </span>
+                      )
                     ) : (
                       <span className="text-sm font-mono text-ink">
                         {p.correct}
@@ -294,6 +368,74 @@ export default async function ExamenEnviadoPage({
             })}
           </div>
         </section>
+
+        {/* Correcciones de Writing (si existen) */}
+        {(writingCorrections?.length ?? 0) > 0 && (
+          <section className="bg-white rounded-lg border border-rule overflow-hidden mb-6">
+            <header className="px-5 py-3 border-b border-rule bg-paper">
+              <h2 className="text-sm font-medium text-ink uppercase tracking-wider flex items-center gap-2">
+                <PenLine className="h-4 w-4 text-navy" />
+                Correcciones de Writing
+              </h2>
+            </header>
+            <div className="divide-y divide-rule">
+              {(writingCorrections ?? []).map((c) => {
+                // Encontrar la pregunta a la que pertenece esta corrección
+                const q = (questions ?? []).find((x) => x.id === c.question_id);
+                const summary = q?.stem?.split("\n")[0] ?? "Writing task";
+                const criteria = [
+                  { key: "Content", score: c.content_score },
+                  { key: "Communicative Achievement", score: c.communicative_score },
+                  { key: "Organisation", score: c.organisation_score },
+                  { key: "Language", score: c.language_score },
+                ];
+                return (
+                  <div key={c.question_id} className="px-5 py-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <p className="text-sm text-ink font-medium line-clamp-1 flex-1">
+                        {summary}
+                      </p>
+                      <div className="text-right shrink-0">
+                        <p className="text-2xl font-bold font-mono tabular-nums text-ink">
+                          {c.total_score}
+                          <span className="text-sm text-muted">/20</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                      {criteria.map((cr) => (
+                        <div
+                          key={cr.key}
+                          className="rounded border border-rule bg-paper px-3 py-2"
+                        >
+                          <p className="text-[10px] uppercase tracking-wider text-muted mb-0.5 leading-tight">
+                            {cr.key}
+                          </p>
+                          <p className="font-mono text-lg font-semibold text-navy tabular-nums">
+                            {cr.score ?? "—"}
+                            <span className="text-xs text-muted">/5</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {c.feedback && (
+                      <div className="mt-3 rounded border border-navy/20 bg-navy-50/50 px-3 py-2">
+                        <p className="text-xs uppercase tracking-wider text-muted mb-1 font-medium">
+                          Comentario del profesor
+                        </p>
+                        <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">
+                          {c.feedback}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Metadatos del intento */}
         <section className="bg-white rounded-lg border border-rule p-5 mb-6">

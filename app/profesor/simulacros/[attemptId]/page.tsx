@@ -9,6 +9,7 @@ import {
   User,
   ClipboardCheck,
   FileText,
+  ChevronRight,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -305,7 +306,7 @@ export default async function ProfesorIntentoDetallePage({
       </section>
 
       {/* CTAs */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <Link
           href={`/alumno/examen/${attempt.id}/revisar`}
           className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded border-2 border-navy text-navy text-sm font-medium hover:bg-navy-50 flex-1"
@@ -313,16 +314,114 @@ export default async function ProfesorIntentoDetallePage({
           <FileText className="h-4 w-4" />
           Revisar respuestas pregunta a pregunta
         </Link>
-        {isWritingPending && (
-          <div
-            className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded bg-saffron/20 text-saffron border-2 border-saffron/40 text-sm font-medium flex-1 cursor-not-allowed"
-            title="Corrección manual del Writing en próxima sesión"
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            Corregir Writing (próximamente)
-          </div>
-        )}
       </div>
+
+      {/* Bandeja de writings del intento */}
+      <WritingsBandeja attemptId={attempt.id} examId={examData?.id ?? ""} />
     </div>
+  );
+}
+
+async function WritingsBandeja({
+  attemptId,
+  examId,
+}: {
+  attemptId: string;
+  examId: string;
+}) {
+  const admin = createAdminClient();
+
+  const { data: writingQuestions } = await admin
+    .from("questions")
+    .select(
+      "id, question_number, stem, exam_parts!inner(part_number, title, exam_id)"
+    )
+    .eq("exam_parts.exam_id", examId)
+    .eq("question_type", "writing_task")
+    .order("question_number", { ascending: true });
+
+  if (!writingQuestions || writingQuestions.length === 0) return null;
+
+  const questionIds = writingQuestions.map((q) => q.id);
+
+  const [{ data: answers }, { data: corrections }] = await Promise.all([
+    admin
+      .from("answers")
+      .select("question_id, answer_text")
+      .eq("attempt_id", attemptId)
+      .in("question_id", questionIds),
+    admin
+      .from("writing_corrections")
+      .select("question_id, total_score, status, corrected_at")
+      .eq("attempt_id", attemptId)
+      .in("question_id", questionIds),
+  ]);
+
+  const answersByQ = new Map((answers ?? []).map((a) => [a.question_id, a]));
+  const correctionsByQ = new Map((corrections ?? []).map((c) => [c.question_id, c]));
+
+  return (
+    <section className="bg-white rounded-lg border border-rule overflow-hidden">
+      <header className="px-5 py-3 border-b border-rule bg-paper">
+        <h2 className="text-sm font-medium text-ink uppercase tracking-wider flex items-center gap-2">
+          <PenLine className="h-4 w-4 text-saffron" />
+          Writings del intento
+        </h2>
+      </header>
+
+      <div className="divide-y divide-rule">
+        {writingQuestions.map((q, i) => {
+          const partData = Array.isArray(q.exam_parts) ? q.exam_parts[0] : q.exam_parts;
+          const answer = answersByQ.get(q.id);
+          const correction = correctionsByQ.get(q.id);
+          const isCorrected = correction?.status === "completed";
+          const wordCount = answer?.answer_text
+            ? answer.answer_text.trim().split(/\s+/).filter(Boolean).length
+            : 0;
+
+          return (
+            <Link
+              key={q.id}
+              href={`/profesor/simulacros/${attemptId}/writing/${q.id}`}
+              className="flex items-center gap-4 px-5 py-4 hover:bg-paper transition-colors group"
+            >
+              <div className="w-14 shrink-0">
+                <p className="text-xs uppercase tracking-wider text-muted">
+                  Part {partData?.part_number}
+                </p>
+                <p className="text-xs text-muted">Writing {i + 1}</p>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-ink line-clamp-1">
+                  {q.stem?.split("\n")[0] ?? "—"}
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  {answer?.answer_text
+                    ? `${wordCount} palabras escritas`
+                    : "Sin respuesta"}
+                </p>
+              </div>
+
+              <div className="text-right shrink-0">
+                {isCorrected ? (
+                  <>
+                    <p className="text-sm font-mono text-ink font-semibold">
+                      {correction.total_score}
+                      <span className="text-muted">/20</span>
+                    </p>
+                    <p className="text-xs text-ok">Corregido</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-saffron font-medium">Pendiente</p>
+                )}
+              </div>
+
+              <ChevronRight className="h-5 w-5 text-muted group-hover:text-navy shrink-0" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
