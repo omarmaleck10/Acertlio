@@ -16,7 +16,8 @@
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.4",
     "@supabase/supabase-js": "^2.45.4",
-    "@supabase/ssr": "^0.5.1"
+    "@supabase/ssr": "^0.5.1",
+    "stripe": "^17.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.11",
