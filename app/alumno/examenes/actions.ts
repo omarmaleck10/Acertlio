@@ -223,3 +223,215 @@ export async function closePaperAction(
   revalidatePath(`/alumno/examenes/${examId}`);
   return {};
 }
+
+
+/**
+ * Guarda o actualiza una respuesta del alumno.
+ * Se llama desde el simulador cada vez que cambia una respuesta (debounced).
+ * Idempotente: si ya existe la respuesta, la actualiza.
+ */
+export async function saveAnswerAction(input: {
+  paperAttemptId: string;
+  questionId: string;
+  selectedOptionId?: string | null;
+  answerText?: string | null;
+}): Promise<{ error?: string; ok?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  // Verificar que el paper_attempt pertenece al alumno y está in_progress
+  const { data: pa } = await admin
+    .from("paper_attempts")
+    .select("id, attempt_id, status, student_id")
+    .eq("id", input.paperAttemptId)
+    .maybeSingle();
+
+  if (!pa) return { error: "Intento no encontrado." };
+  if (pa.student_id !== user.id) return { error: "No autorizado." };
+  if (pa.status !== "in_progress") {
+    return { error: "El intento no está en curso." };
+  }
+
+  // Upsert en answers (unique attempt_id + question_id)
+  const { error } = await admin.from("answers").upsert(
+    {
+      attempt_id: pa.attempt_id,
+      paper_attempt_id: pa.id,
+      question_id: input.questionId,
+      selected_option_id: input.selectedOptionId ?? null,
+      answer_text: input.answerText ?? null,
+      answered_at: new Date().toISOString(),
+    },
+    { onConflict: "attempt_id,question_id" }
+  );
+
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+
+/**
+ * Sincroniza el timer con la BD.
+ * Se llama cada 30 segundos desde el cliente para persistir el tiempo
+ * restante. También actualiza last_active_at.
+ */
+export async function syncTimerAction(input: {
+  paperAttemptId: string;
+  timeRemainingSeconds: number;
+}): Promise<{ error?: string; ok?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  const { data: pa } = await admin
+    .from("paper_attempts")
+    .select("id, student_id, status")
+    .eq("id", input.paperAttemptId)
+    .maybeSingle();
+
+  if (!pa) return { error: "Intento no encontrado." };
+  if (pa.student_id !== user.id) return { error: "No autorizado." };
+  if (pa.status !== "in_progress") return { ok: true }; // no-op
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("paper_attempts")
+    .update({
+      time_remaining_seconds: Math.max(0, Math.floor(input.timeRemainingSeconds)),
+      last_active_at: now,
+      updated_at: now,
+    })
+    .eq("id", input.paperAttemptId);
+
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+
+/**
+ * Marca o desmarca una pregunta como "para revisar" (bookmark).
+ */
+export async function toggleBookmarkAction(input: {
+  paperAttemptId: string;
+  questionId: string;
+  bookmarked: boolean;
+}): Promise<{ error?: string; ok?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  if (input.bookmarked) {
+    // Insertar (idempotente por unique constraint)
+    const { error } = await admin.from("paper_attempt_bookmarks").upsert(
+      {
+        paper_attempt_id: input.paperAttemptId,
+        question_id: input.questionId,
+        student_id: user.id,
+      },
+      { onConflict: "paper_attempt_id,question_id" }
+    );
+    if (error) return { error: error.message };
+  } else {
+    // Borrar
+    const { error } = await admin
+      .from("paper_attempt_bookmarks")
+      .delete()
+      .eq("paper_attempt_id", input.paperAttemptId)
+      .eq("question_id", input.questionId);
+    if (error) return { error: error.message };
+  }
+
+  return { ok: true };
+}
+
+
+/**
+ * Pausa el paper (llamado al cerrar el navegador o navegar fuera).
+ * Guarda el tiempo restante y marca el paper_attempt como 'paused'.
+ */
+export async function pausePaperAction(input: {
+  paperAttemptId: string;
+  timeRemainingSeconds: number;
+}): Promise<{ error?: string; ok?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  const { data: pa } = await admin
+    .from("paper_attempts")
+    .select("id, student_id, status")
+    .eq("id", input.paperAttemptId)
+    .maybeSingle();
+
+  if (!pa) return { error: "Intento no encontrado." };
+  if (pa.student_id !== user.id) return { error: "No autorizado." };
+  if (pa.status !== "in_progress") return { ok: true }; // ya está en otro estado
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("paper_attempts")
+    .update({
+      status: "paused",
+      time_remaining_seconds: Math.max(0, Math.floor(input.timeRemainingSeconds)),
+      last_active_at: now,
+      updated_at: now,
+    })
+    .eq("id", input.paperAttemptId);
+
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+
+/**
+ * Cierre automático por tiempo agotado.
+ * Marca el paper_attempt como 'time_expired' y auto_closed = true.
+ */
+export async function expirePaperAction(input: {
+  paperAttemptId: string;
+}): Promise<{ error?: string; redirectTo?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  const { data: pa } = await admin
+    .from("paper_attempts")
+    .select("id, attempt_id, student_id, status")
+    .eq("id", input.paperAttemptId)
+    .maybeSingle();
+
+  if (!pa) return { error: "Intento no encontrado." };
+  if (pa.student_id !== user.id) return { error: "No autorizado." };
+
+  const now = new Date().toISOString();
+  await admin
+    .from("paper_attempts")
+    .update({
+      status: "time_expired",
+      completed_at: now,
+      last_active_at: now,
+      time_remaining_seconds: 0,
+      auto_closed: true,
+      updated_at: now,
+    })
+    .eq("id", input.paperAttemptId);
+
+  // Buscar el examId para el redirect
+  const { data: attempt } = await admin
+    .from("attempts")
+    .select("exam_id")
+    .eq("id", pa.attempt_id)
+    .maybeSingle();
+
+  const redirectTo = attempt
+    ? `/alumno/examenes/${attempt.exam_id}`
+    : "/alumno";
+
+  return { redirectTo };
+}
