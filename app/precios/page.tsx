@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Check, Sparkles, Clock } from "lucide-react";
 import { MarketingHeader } from "@/components/marketing/header";
 import { MarketingFooter } from "@/components/marketing/footer";
 import { JsonLd } from "@/components/shared/json-ld";
@@ -8,8 +7,6 @@ import {
   ACADEMY_PLANS,
   ENTERPRISE_PLAN,
   INDIVIDUAL_PLAN,
-  yearlyDiscount,
-  monthlyEquivalent,
 } from "@/lib/stripe/plans";
 import { PricingTabs } from "@/components/marketing/pricing-tabs";
 
@@ -64,8 +61,6 @@ export default function PreciosPage({
           academyPlans={JSON.parse(JSON.stringify(ACADEMY_PLANS))}
           enterprisePlan={JSON.parse(JSON.stringify(ENTERPRISE_PLAN))}
           individualPlan={JSON.parse(JSON.stringify(INDIVIDUAL_PLAN))}
-          yearlyDiscount={(m: number, y: number) => yearlyDiscount(m, y)}
-          monthlyEquivalent={(y: number) => monthlyEquivalent(y)}
         />
       </main>
 
