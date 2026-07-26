@@ -22,8 +22,8 @@ const options: Array<{
     icon: User,
     title: "Soy un alumno",
     description: "Quiero prepararme yo mismo para mi examen Cambridge.",
-    hint: "Acceso individual",
-    href: "/empezar/alumno",
+    hint: "Plan individual · 7 días gratis",
+    href: "/individual/empezar",
   },
   {
     id: "academia-pequena",

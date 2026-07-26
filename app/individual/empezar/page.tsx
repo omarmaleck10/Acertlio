@@ -80,6 +80,17 @@ export default function IndividualEmpezarPage({ searchParams }: Props) {
               yearlyPrice={yearly}
               yearlyMonthlyEquivalent={`${yearlyMonthly}/mes`}
             />
+
+            {/* Link a login */}
+            <p className="mt-8 text-sm text-muted text-center">
+              ¿Ya tienes cuenta?{" "}
+              <Link
+                href="/login"
+                className="text-navy hover:underline font-medium"
+              >
+                Iniciar sesión
+              </Link>
+            </p>
           </div>
 
           {/* Columna derecha: benefits (sticky) */}

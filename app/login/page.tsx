@@ -38,12 +38,26 @@ export default async function LoginPage() {
 
             <LoginForm />
 
-            <p className="mt-8 text-sm text-muted text-center">
-              ¿Aún no tienes cuenta?{" "}
-              <Link href="/precios" className="text-navy hover:underline">
-                Ver planes para academias
-              </Link>
-            </p>
+            <div className="mt-8 pt-6 border-t border-rule space-y-3 text-center">
+              <p className="text-sm text-ink font-medium">
+                ¿Aún no tienes cuenta?
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+                <Link
+                  href="/individual/empezar"
+                  className="text-sm text-navy hover:underline font-medium"
+                >
+                  Empezar como alumno →
+                </Link>
+                <span className="hidden sm:inline text-muted">·</span>
+                <Link
+                  href="/precios"
+                  className="text-sm text-navy hover:underline font-medium"
+                >
+                  Planes para academias →
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
