@@ -125,7 +125,7 @@ export default async function AlumnoResumenPage() {
               .map((exam) => (
                 <Link
                   key={exam.id}
-                  href={`/alumno/examen/inicio/${exam.id}`}
+                  href={`/alumno/examenes/${exam.id}`}
                   className="block bg-white rounded-lg border border-rule hover:border-navy p-4 transition-colors group"
                 >
                   <div className="flex items-center justify-between mb-1">

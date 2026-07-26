@@ -1,0 +1,225 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/user";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+
+/**
+ * Confirma la lectura de instrucciones y arranca un paper.
+ *
+ * Flujo:
+ *   1. Verifica el paper y sus condiciones (disponible, prerequisitos)
+ *   2. Busca o crea el attempt agrupador para este mock
+ *   3. Busca o crea el paper_attempt
+ *   4. Marca el paper_attempt como "in_progress" con timer arrancando
+ *   5. Redirige al simulador
+ *
+ * Idempotente: si ya hay un paper_attempt in_progress, solo redirige.
+ */
+export async function startOrResumePaperAction(
+  examId: string,
+  paperCode: string
+): Promise<{ error?: string; redirectTo?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  // 1. Verificar el examen y el paper
+  const { data: exam } = await admin
+    .from("exams")
+    .select("id, is_published")
+    .eq("id", examId)
+    .maybeSingle();
+
+  if (!exam || !exam.is_published) {
+    return { error: "El examen no existe o no está publicado." };
+  }
+
+  const { data: paper } = await admin
+    .from("exam_papers")
+    .select(
+      "id, code, is_available, unlocks_after_paper_id, duration_minutes"
+    )
+    .eq("exam_id", examId)
+    .eq("code", paperCode)
+    .maybeSingle();
+
+  if (!paper) return { error: "Este paper no existe en el examen." };
+  if (!paper.is_available) return { error: "Este paper aún no está disponible." };
+
+  // 2. Buscar o crear el attempt agrupador
+  const { data: existingAttempt } = await admin
+    .from("attempts")
+    .select("id, status, academy_id")
+    .eq("exam_id", examId)
+    .eq("student_id", user.id)
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let attemptId: string;
+  let academyId: string;
+
+  if (existingAttempt) {
+    attemptId = existingAttempt.id;
+    academyId = existingAttempt.academy_id;
+  } else {
+    // Crear nuevo attempt agrupador
+    if (!user.profile.academy_id) {
+      return { error: "Tu cuenta no está asociada a ninguna academia." };
+    }
+    academyId = user.profile.academy_id;
+
+    const { data: newAttempt, error: attemptErr } = await admin
+      .from("attempts")
+      .insert({
+        exam_id: examId,
+        student_id: user.id,
+        academy_id: academyId,
+        status: "in_progress",
+      })
+      .select("id")
+      .single();
+
+    if (attemptErr || !newAttempt) {
+      return { error: `No se pudo crear el intento: ${attemptErr?.message ?? "error"}` };
+    }
+    attemptId = newAttempt.id;
+  }
+
+  // 3. Verificar prerequisitos del paper
+  if (paper.unlocks_after_paper_id) {
+    const { data: prereqAttempt } = await admin
+      .from("paper_attempts")
+      .select("status")
+      .eq("attempt_id", attemptId)
+      .eq("paper_id", paper.unlocks_after_paper_id)
+      .maybeSingle();
+
+    const done =
+      prereqAttempt?.status === "completed" ||
+      prereqAttempt?.status === "time_expired";
+    if (!done) {
+      return {
+        error: "Aún no puedes empezar este paper. Termina antes el anterior.",
+      };
+    }
+  }
+
+  // 4. Buscar o crear el paper_attempt
+  const { data: existingPa } = await admin
+    .from("paper_attempts")
+    .select("id, status, time_remaining_seconds")
+    .eq("attempt_id", attemptId)
+    .eq("paper_id", paper.id)
+    .maybeSingle();
+
+  const now = new Date().toISOString();
+
+  if (existingPa) {
+    // Si ya está completado, no dejar volver a empezar
+    if (
+      existingPa.status === "completed" ||
+      existingPa.status === "time_expired"
+    ) {
+      return { error: "Este paper ya está completado. Puedes ver tu resultado." };
+    }
+
+    // Marcar como in_progress (por si venía de paused o confirmed)
+    await admin
+      .from("paper_attempts")
+      .update({
+        status: "in_progress",
+        started_at: existingPa.status === "confirmed" ? now : undefined,
+        last_active_at: now,
+        updated_at: now,
+      })
+      .eq("id", existingPa.id);
+  } else {
+    // Crear nuevo paper_attempt
+    const { error: paErr } = await admin.from("paper_attempts").insert({
+      attempt_id: attemptId,
+      paper_id: paper.id,
+      student_id: user.id,
+      status: "in_progress",
+      started_at: now,
+      confirmed_at: now,
+      last_active_at: now,
+      time_remaining_seconds: paper.duration_minutes * 60,
+    });
+
+    if (paErr) {
+      return {
+        error: `No se pudo crear el intento del paper: ${paErr.message}`,
+      };
+    }
+  }
+
+  revalidatePath(`/alumno/examenes/${examId}`);
+
+  return {
+    redirectTo: `/alumno/examenes/${examId}/${paper.code}/examen`,
+  };
+}
+
+
+/**
+ * Cierra un paper (llamado al agotarse el timer o cuando el alumno termina).
+ * Cambia el status a completed o time_expired.
+ */
+export async function closePaperAction(
+  examId: string,
+  paperCode: string,
+  reason: "completed" | "time_expired"
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  // Buscar attempt agrupador
+  const { data: attempt } = await admin
+    .from("attempts")
+    .select("id")
+    .eq("exam_id", examId)
+    .eq("student_id", user.id)
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!attempt) return { error: "No hay intento en curso." };
+
+  // Buscar el paper
+  const { data: paper } = await admin
+    .from("exam_papers")
+    .select("id")
+    .eq("exam_id", examId)
+    .eq("code", paperCode)
+    .maybeSingle();
+
+  if (!paper) return { error: "Paper no encontrado." };
+
+  // Actualizar paper_attempt
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("paper_attempts")
+    .update({
+      status: reason,
+      completed_at: now,
+      last_active_at: now,
+      auto_closed: reason === "time_expired",
+      updated_at: now,
+    })
+    .eq("attempt_id", attempt.id)
+    .eq("paper_id", paper.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/alumno/examenes/${examId}`);
+  return {};
+}
