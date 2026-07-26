@@ -7,6 +7,9 @@ import { ExamFooter } from "./exam-footer";
 import { QuestionMultipleChoice } from "./question-mc";
 import { QuestionOpenCloze } from "./question-open-cloze";
 import { QuestionMultipleChoiceCloze } from "./question-mc-cloze";
+import { QuestionMatching } from "./question-matching";
+import { QuestionGapped } from "./question-gapped";
+import { QuestionWriting } from "./question-writing";
 import { QuestionPlaceholder } from "./question-placeholder";
 import { QuestionNavigator } from "./question-navigator";
 import { NotesPanel } from "./notes-panel";
@@ -305,8 +308,16 @@ export function ExamSimulator({ data }: Props) {
           | undefined)
       : undefined;
 
+  const partMatchingOptions =
+    currentPart?.settings && typeof currentPart.settings === "object"
+      ? ((currentPart.settings as Record<string, unknown>).matching_options as
+          | Array<{ letter: string; text: string }>
+          | undefined)
+      : undefined;
+
   const partContextText = partReadingText ?? partBaseText;
-  const hasTextContext = Boolean(partContextText);
+  const hasTextContext = Boolean(partContextText) || Boolean(partMatchingOptions);
+  const availableLetters = partMatchingOptions?.map((o) => o.letter) ?? [];
 
 
   // ─── Render de la pregunta ──────────────────────────────────
@@ -347,6 +358,41 @@ export function ExamSimulator({ data }: Props) {
       case "open_cloze":
         return (
           <QuestionOpenCloze
+            question={currentQuestion}
+            answerText={answerTexts.get(currentQuestion.id) ?? ""}
+            isBookmarked={isBookmarked}
+            onChange={(t) => handleChangeText(currentQuestion.id, t)}
+            onToggleBookmark={() => handleToggleBookmark(currentQuestion.id)}
+          />
+        );
+
+      case "multiple_matching":
+        return (
+          <QuestionMatching
+            question={currentQuestion}
+            availableLetters={availableLetters}
+            answerLetter={answerTexts.get(currentQuestion.id) ?? ""}
+            isBookmarked={isBookmarked}
+            onChange={(letter) => handleChangeText(currentQuestion.id, letter)}
+            onToggleBookmark={() => handleToggleBookmark(currentQuestion.id)}
+          />
+        );
+
+      case "gapped_text":
+        return (
+          <QuestionGapped
+            question={currentQuestion}
+            availableLetters={availableLetters}
+            answerLetter={answerTexts.get(currentQuestion.id) ?? ""}
+            isBookmarked={isBookmarked}
+            onChange={(letter) => handleChangeText(currentQuestion.id, letter)}
+            onToggleBookmark={() => handleToggleBookmark(currentQuestion.id)}
+          />
+        );
+
+      case "writing_task":
+        return (
+          <QuestionWriting
             question={currentQuestion}
             answerText={answerTexts.get(currentQuestion.id) ?? ""}
             isBookmarked={isBookmarked}
@@ -411,12 +457,33 @@ export function ExamSimulator({ data }: Props) {
         <main className="flex-1 pt-[130px] pb-[80px] px-4 md:px-6 overflow-y-auto">
           {hasTextContext ? (
             <div className="max-w-6xl mx-auto py-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Columna izquierda: texto compartido */}
+              {/* Columna izquierda: texto compartido + opciones A-H */}
               <div className="lg:sticky lg:top-[145px] lg:self-start">
-                <div className="rounded border border-rule bg-white p-6 max-h-[calc(100vh-220px)] overflow-y-auto">
-                  <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
-                    {partContextText}
-                  </p>
+                <div className="rounded border border-rule bg-white p-6 max-h-[calc(100vh-220px)] overflow-y-auto space-y-5">
+                  {partContextText && (
+                    <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                      {partContextText}
+                    </p>
+                  )}
+                  {partMatchingOptions && partMatchingOptions.length > 0 && (
+                    <div className={partContextText ? "pt-5 border-t border-rule" : ""}>
+                      <p className="text-xs uppercase tracking-wider text-navy font-medium mb-3">
+                        Options
+                      </p>
+                      <div className="space-y-3">
+                        {partMatchingOptions.map((opt) => (
+                          <div key={opt.letter} className="flex gap-3">
+                            <span className="flex-shrink-0 flex items-center justify-center h-7 w-7 rounded bg-navy text-white text-sm font-semibold">
+                              {opt.letter}
+                            </span>
+                            <p className="text-sm text-ink leading-relaxed flex-1">
+                              {opt.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
