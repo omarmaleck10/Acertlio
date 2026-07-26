@@ -97,8 +97,9 @@ export async function checkoutAcademyPlanAction(
         billing_interval: interval,
       },
     },
-    automatic_tax: { enabled: true },
-    tax_id_collection: { enabled: true },
+    // Tax desactivado hasta que el usuario active Stripe Tax (requiere autónomo)
+    // automatic_tax: { enabled: true },
+    // tax_id_collection: { enabled: true },
     customer_update: {
       address: "auto",
       name: "auto",
@@ -188,7 +189,8 @@ export async function checkoutIndividualPlanAction(
         billing_interval: interval,
       },
     },
-    automatic_tax: { enabled: true },
+    // Tax desactivado hasta que el usuario active Stripe Tax
+    // automatic_tax: { enabled: true },
     customer_update: { address: "auto", name: "auto" },
     billing_address_collection: "required",
     allow_promotion_codes: true,
