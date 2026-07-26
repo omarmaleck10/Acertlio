@@ -115,7 +115,7 @@ export async function activateIndividualRegistrationAction(
         email: reg.email,
         role: "student",
         is_individual: true,
-        level: reg.target_level,
+        current_level: reg.target_level,
         referral_source:
           reg.referral_source === "other"
             ? `other: ${reg.referral_other ?? ""}`.slice(0, 200)
@@ -134,7 +134,7 @@ export async function activateIndividualRegistrationAction(
       email: reg.email,
       role: "student",
       is_individual: true,
-      level: reg.target_level,
+      current_level: reg.target_level,
       referral_source:
         reg.referral_source === "other"
           ? `other: ${reg.referral_other ?? ""}`.slice(0, 200)
