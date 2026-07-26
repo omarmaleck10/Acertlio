@@ -3,6 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, Clock, User, GraduationCap } from "lucide-react";
+import {
+  yearlyDiscount as computeYearlyDiscount,
+  monthlyEquivalent as computeMonthlyEquivalent,
+} from "@/lib/stripe/plans";
 
 interface Plan {
   key: string;
@@ -26,8 +30,6 @@ interface Props {
     features: readonly string[];
   };
   individualPlan: Plan;
-  yearlyDiscount: (monthly: number, yearly: number) => number;
-  monthlyEquivalent: (yearly: number) => number;
 }
 
 export function PricingTabs({
@@ -35,11 +37,12 @@ export function PricingTabs({
   academyPlans,
   enterprisePlan,
   individualPlan,
-  yearlyDiscount,
-  monthlyEquivalent,
 }: Props) {
   const [tab, setTab] = useState<"academies" | "individual">(startTab);
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
+
+  const yearlyDiscount = computeYearlyDiscount;
+  const monthlyEquivalent = computeMonthlyEquivalent;
 
   return (
     <div className="mt-10">
