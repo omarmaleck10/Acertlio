@@ -5,44 +5,43 @@ import type { SimQuestion } from "@/lib/exam/loader";
 
 interface Props {
   question: SimQuestion;
-  answerText: string;
+  selectedOptionId: string | null;
   isBookmarked: boolean;
-  onChange: (text: string) => void;
+  onSelect: (optionId: string) => void;
   onToggleBookmark: () => void;
 }
 
 /**
- * Renderizador de Open Cloze (Part 6 de B1).
+ * Renderizador de Multiple Choice Cloze (Part 5 de B1).
  *
- * Cada pregunta representa UN hueco individual del texto largo.
- * El alumno ve el número del hueco y un input pequeño donde escribe
- * la palabra que falta.
+ * Cada pregunta representa las opciones A/B/C/D de UN hueco del texto.
+ * El texto completo con todos los huecos se muestra en el contexto de
+ * la Part (base_text del settings).
  *
- * El texto largo con TODOS los huecos se muestra en el header/contexto
- * de la Part (base_text del settings), no aquí. Aquí solo mostramos el
- * hueco individual.
+ * Layout: opciones apiladas verticalmente, cada una es una tarjeta
+ * seleccionable como el MC normal, pero con label "Gap X" arriba.
  */
-export function QuestionOpenCloze({
+export function QuestionMultipleChoiceCloze({
   question,
-  answerText,
+  selectedOptionId,
   isBookmarked,
-  onChange,
+  onSelect,
   onToggleBookmark,
 }: Props) {
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="rounded border border-rule bg-white p-6">
+      <div className="mb-6">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <span className="flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-navy text-white text-sm font-semibold">
               {question.question_number}
             </span>
-            <div className="min-w-0 flex-1">
+            <div>
               <p className="text-base text-ink leading-relaxed font-medium">
                 Gap {question.question_number}
               </p>
               <p className="text-sm text-muted mt-1">
-                Write ONE word that best fits this gap.
+                Choose the word that best fits this gap in the text.
               </p>
             </div>
           </div>
@@ -61,28 +60,40 @@ export function QuestionOpenCloze({
           </button>
         </div>
 
-        {/* Input pequeño en línea */}
-        <div className="flex items-center gap-3 mt-6">
-          <label className="text-sm text-muted flex-shrink-0">
-            Your answer:
-          </label>
-          <input
-            type="text"
-            value={answerText}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-32 rounded border-2 border-rule px-3 py-1.5 text-base text-ink font-medium focus:outline-none focus:border-navy transition-colors"
-            placeholder="…"
-            autoComplete="off"
-            spellCheck={false}
-          />
+        {/* Opciones — mismo diseño que MC normal */}
+        <div className="space-y-2">
+          {question.options.map((opt) => {
+            const isSelected = opt.id === selectedOptionId;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => onSelect(opt.id)}
+                className={`w-full text-left flex items-center gap-3 rounded border-2 px-4 py-3 transition-all ${
+                  isSelected
+                    ? "border-navy bg-navy/5"
+                    : "border-rule bg-white hover:border-navy/40"
+                }`}
+              >
+                <span
+                  className={`flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-full text-sm font-semibold border-2 transition-colors ${
+                    isSelected
+                      ? "border-navy bg-navy text-white"
+                      : "border-rule text-muted"
+                  }`}
+                >
+                  {opt.letter}
+                </span>
+                <span
+                  className={`text-base leading-relaxed font-medium ${
+                    isSelected ? "text-ink" : "text-ink"
+                  }`}
+                >
+                  {opt.text}
+                </span>
+              </button>
+            );
+          })}
         </div>
-
-        {/* Consejo */}
-        <p className="text-xs text-muted mt-4 italic leading-relaxed">
-          Tip: normally one word. Contractions like{" "}
-          <code className="bg-paper px-1 rounded">don&apos;t</code> count as one
-          word.
-        </p>
       </div>
     </div>
   );
