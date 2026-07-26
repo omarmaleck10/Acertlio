@@ -167,8 +167,7 @@ export function PricingTabs({
         <div className="max-w-2xl mx-auto">
           <div className="rounded-lg border-2 border-navy bg-white p-8 relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-saffron text-white text-xs font-semibold uppercase tracking-wider">
-              <Clock className="h-3 w-3" />
-              Próximamente
+              7 días gratis
             </div>
 
             <h3 className="text-2xl font-semibold text-ink">
@@ -202,22 +201,20 @@ export function PricingTabs({
               ))}
             </ul>
 
-            <div className="mt-8 rounded border border-saffron/30 bg-saffron/5 p-4">
+            <div className="mt-8 rounded border border-ok/30 bg-ok/5 p-4">
               <p className="text-sm text-ink font-medium mb-1">
-                🚧 Estamos afinando los últimos detalles
+                ✨ Empieza ya con 7 días de prueba
               </p>
               <p className="text-xs text-muted leading-relaxed">
-                El plan individual llegará en las próximas semanas. Estamos
-                afinando el motor de corrección con feedback pedagógico
-                personalizado para asegurarte una experiencia a la altura de
-                Cambridge. Déjanos tu email y te avisamos el día que abramos.
+                Prueba con hasta 3 simulacros gratis. No pagas nada hasta el
+                día 8 y puedes cancelar en cualquier momento desde tu panel.
               </p>
-              <div className="mt-3">
+              <div className="mt-4">
                 <Link
-                  href="/contacto?tipo=alumno-individual"
-                  className="inline-flex items-center gap-2 h-10 px-4 rounded bg-navy text-white text-sm font-medium hover:bg-navy-600"
+                  href={`/individual/empezar?interval=${interval}`}
+                  className="inline-flex items-center gap-2 h-10 px-5 rounded bg-navy text-white text-sm font-semibold hover:bg-navy/90"
                 >
-                  Avísame cuando esté listo
+                  Empezar prueba gratis →
                 </Link>
               </div>
             </div>
