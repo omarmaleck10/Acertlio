@@ -6,6 +6,7 @@ const nav = [
   { label: "Producto", href: "/#producto" },
   { label: "Precios", href: "/precios" },
   { label: "Para academias", href: "/academias" },
+  { label: "Para alumnos", href: "/alumnos" },
   { label: "Contacto", href: "/contacto" },
 ];
 
