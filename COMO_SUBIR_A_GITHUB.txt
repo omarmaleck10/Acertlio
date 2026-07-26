@@ -1,0 +1,179 @@
+═══════════════════════════════════════════════════════════════════
+   ACERTLIO — Proyecto completo (Fase 5A incluida)
+═══════════════════════════════════════════════════════════════════
+
+Este ZIP contiene TODO el proyecto Acertlio: los 155 archivos
+funcionales, incluyendo toda la Fase 5A (Stripe + landings).
+
+
+═══════════════════════════════════════════════════════════════════
+🎯 OBJETIVO — Re-subir el proyecto entero a GitHub
+═══════════════════════════════════════════════════════════════════
+
+Vamos a REEMPLAZAR el contenido actual del repo por esta versión
+limpia. GitHub guarda el histórico así que no pierdes nada del
+trabajo anterior.
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 1 — Descomprimir el ZIP
+═══════════════════════════════════════════════════════════════════
+
+1. Descarga este ZIP y descomprímelo en tu escritorio.
+2. Verás una carpeta llamada `acertlio` con todos los archivos.
+3. IMPORTANTE: en el siguiente paso NO vas a subir la carpeta
+   `acertlio` en sí, sino TODO LO QUE HAY DENTRO de esa carpeta.
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 2 — Ir al repo de GitHub
+═══════════════════════════════════════════════════════════════════
+
+1. Abre tu repo en GitHub (el que ya tienes, no crees uno nuevo).
+2. Estás en la página principal del repo.
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 3 — Subir TODO el contenido de golpe
+═══════════════════════════════════════════════════════════════════
+
+1. En GitHub, botón "Add file" (arriba a la derecha)
+   → "Upload files"
+
+2. Se abre una pantalla con una zona grande que dice:
+   "Drag files here to add them to your repository"
+
+3. Abre el explorador de archivos de tu ordenador y ENTRA
+   en la carpeta `acertlio` que descomprimiste.
+
+4. Selecciona TODO lo que hay dentro:
+   - En Windows: Ctrl + A
+   - En Mac: Cmd + A
+
+   Vas a seleccionar:
+   - Carpetas: app, components, lib, public, supabase, ...
+   - Archivos sueltos: package.json, next.config.mjs, README.md, ...
+
+5. Arrastra la selección entera a la zona de GitHub.
+
+   ⚠️ IMPORTANTE: Al soltar, GitHub Web procesa CARPETAS bien SIEMPRE
+   QUE YA EXISTAN, y las carpetas nuevas también las crea al arrastrar.
+   Verás que va subiendo archivo por archivo. Puede tardar 1-2 minutos.
+   ¡No cierres la pestaña!
+
+6. Cuando termine de subir todo, verás una lista larga de archivos.
+
+7. Baja al fondo:
+   - Mensaje del commit: "Sincronización completa con Fase 5A"
+   - Marca "Commit directly to the main branch"
+   - Pulsa "Commit changes"
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 4 — Verificar en GitHub
+═══════════════════════════════════════════════════════════════════
+
+Después del commit, comprueba estos archivos clave (deben abrir sin
+error 404):
+
+Cambia TU_USUARIO por tu nombre de usuario de GitHub:
+
+  https://github.com/TU_USUARIO/acertlio/blob/main/lib/stripe/plans.ts
+  https://github.com/TU_USUARIO/acertlio/blob/main/lib/stripe/client.ts
+  https://github.com/TU_USUARIO/acertlio/blob/main/components/academia/academy-plan-chooser.tsx
+  https://github.com/TU_USUARIO/acertlio/blob/main/components/academia/billing-portal-button.tsx
+  https://github.com/TU_USUARIO/acertlio/blob/main/app/checkout/actions.ts
+  https://github.com/TU_USUARIO/acertlio/blob/main/app/api/stripe/webhook/route.ts
+  https://github.com/TU_USUARIO/acertlio/blob/main/app/preparacion-a2-key-online/page.tsx
+
+Si todas cargan → PERFECTO, sigue al paso 5.
+Si alguna da 404 → falta un archivo. Dime cuál.
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 5 — Esperar deploy en Vercel
+═══════════════════════════════════════════════════════════════════
+
+1. Ve a Vercel → tu proyecto → Deployments
+2. Verás un deploy nuevo iniciándose automáticamente
+3. Espera 2-3 minutos
+4. Debe salir en verde ("Ready")
+
+Si sale en rojo con errores:
+  - Captura del log de errores
+  - Mándamela y lo miramos
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 6 — Ejecutar migración SQL en Supabase
+═══════════════════════════════════════════════════════════════════
+
+Esto NO se sube a GitHub. Es una migración de base de datos.
+
+1. Abre con Bloc de Notas / TextEdit el archivo:
+   acertlio/supabase/migrations/005_extend_subscriptions.sql
+
+2. Copia TODO el contenido (Ctrl+A → Ctrl+C).
+
+3. Ve a Supabase → tu proyecto acertlio-production → SQL Editor
+   → New query
+
+4. Pega el contenido.
+
+5. Pulsa "Run" (o Ctrl+Enter).
+
+6. Verifica ejecutando esta consulta después:
+   
+   select column_name from information_schema.columns 
+   where table_name = 'subscriptions' 
+   and column_name in ('student_id','plan_type','billing_interval','target_level');
+
+   Deben salir 4 filas.
+
+⚠️ Si sale error "cannot run inside a transaction block" en la
+última línea, ejecuta SUELTA esta línea:
+
+   alter type academy_plan add value if not exists 'individual';
+
+
+═══════════════════════════════════════════════════════════════════
+📋 PASO 7 — Añadir variables de entorno en Vercel
+═══════════════════════════════════════════════════════════════════
+
+Ver el mensaje anterior que te di sobre Stripe:
+- Paso 5: sacar claves de Stripe (sk_test_..., pk_test_...)
+- Añadirlas en Vercel → Settings → Environment Variables
+- Redesplegar
+
+
+═══════════════════════════════════════════════════════════════════
+✅ COMPROBACIÓN FINAL
+═══════════════════════════════════════════════════════════════════
+
+Cuando termines todo, prueba estas URLs (deben funcionar):
+
+  https://acertlio.com/precios
+    → debes ver 2 tabs (Academias / Alumnos)
+
+  https://acertlio.com/preparacion-a2-key-online
+  https://acertlio.com/preparacion-b1-preliminary-online
+  https://acertlio.com/preparacion-b2-first-online
+  https://acertlio.com/preparacion-c1-advanced-online
+  https://acertlio.com/preparacion-c2-proficiency-online
+    → todas deben cargar como landings SEO
+
+  Entrando como admin de academia:
+  https://acertlio.com/academia/facturacion
+    → debes ver los 3 planes para elegir
+
+
+═══════════════════════════════════════════════════════════════════
+❓ SI ALGO FALLA
+═══════════════════════════════════════════════════════════════════
+
+Dime en qué paso te quedaste y qué error viste. Puedo:
+- Ayudarte a mirar el log
+- Regenerar archivos específicos que fallen
+- Ajustar el código si algo no funciona en producción
+
+Ánimo. Estás muy cerca de tener todo montado.
