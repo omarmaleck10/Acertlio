@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { DashboardSidebar, SidebarItem } from "@/components/dashboard/sidebar";
 import { getCurrentUser } from "@/lib/supabase/user";
-import { LayoutDashboard, Users, ClipboardCheck, FileText, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardCheck, FileText, BarChart3, ClipboardList } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Panel profesor",
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 const items: SidebarItem[] = [
   { label: "Resumen", href: "/profesor", icon: <LayoutDashboard /> },
   { label: "Alumnos", href: "/profesor/alumnos", icon: <Users /> },
+  { label: "Asignaciones", href: "/profesor/asignaciones", icon: <ClipboardList /> },
   { label: "Simulacros", href: "/profesor/simulacros", icon: <ClipboardCheck /> },
   { label: "Writings pendientes", href: "/profesor/writing", icon: <FileText /> },
   { label: "Estadísticas", href: "/profesor/estadisticas", icon: <BarChart3 /> },
