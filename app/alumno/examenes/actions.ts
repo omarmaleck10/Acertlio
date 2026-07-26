@@ -390,7 +390,7 @@ export async function pausePaperAction(input: {
 
 /**
  * Cierre automático por tiempo agotado.
- * Marca el paper_attempt como 'time_expired' y auto_closed = true.
+ * Autocorrige y marca el paper_attempt como 'time_expired'.
  */
 export async function expirePaperAction(input: {
   paperAttemptId: string;
@@ -408,6 +408,10 @@ export async function expirePaperAction(input: {
 
   if (!pa) return { error: "Intento no encontrado." };
   if (pa.student_id !== user.id) return { error: "No autorizado." };
+
+  // AUTOCORRECCIÓN antes de marcar como cerrado
+  const { autogradePaperAttempt } = await import("@/lib/exam/autograde");
+  await autogradePaperAttempt(pa.id);
 
   const now = new Date().toISOString();
   await admin
@@ -434,4 +438,41 @@ export async function expirePaperAction(input: {
     : "/alumno";
 
   return { redirectTo };
+}
+
+
+/**
+ * Guarda las notas del alumno para un paper_attempt.
+ * Upsert: si no existen, crea la fila; si existen, actualiza el contenido.
+ */
+export async function saveNotesAction(input: {
+  paperAttemptId: string;
+  content: string;
+}): Promise<{ error?: string; ok?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  const { data: pa } = await admin
+    .from("paper_attempts")
+    .select("id, student_id")
+    .eq("id", input.paperAttemptId)
+    .maybeSingle();
+
+  if (!pa) return { error: "Intento no encontrado." };
+  if (pa.student_id !== user.id) return { error: "No autorizado." };
+
+  const { error } = await admin.from("paper_attempt_notes").upsert(
+    {
+      paper_attempt_id: input.paperAttemptId,
+      student_id: user.id,
+      content: input.content,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "paper_attempt_id" }
+  );
+
+  if (error) return { error: error.message };
+  return { ok: true };
 }

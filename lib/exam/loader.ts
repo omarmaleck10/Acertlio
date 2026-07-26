@@ -51,6 +51,7 @@ export interface SimulatorData {
   parts: SimPart[];
   saved_answers: SimSavedAnswer[];
   bookmarked_question_ids: string[];
+  notes_content: string;
 }
 
 
@@ -221,6 +222,15 @@ export async function loadSimulatorData(
     (b) => b.question_id
   );
 
+  // 12. Notas del alumno
+  const { data: notesData } = await admin
+    .from("paper_attempt_notes")
+    .select("content")
+    .eq("paper_attempt_id", paperAttempt.id)
+    .maybeSingle();
+
+  const notes_content = notesData?.content ?? "";
+
   return {
     exam_id: exam.id,
     exam_title: exam.title,
@@ -238,5 +248,6 @@ export async function loadSimulatorData(
     parts,
     saved_answers,
     bookmarked_question_ids,
+    notes_content,
   };
 }
