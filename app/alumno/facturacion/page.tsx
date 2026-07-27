@@ -25,7 +25,7 @@ export default async function AlumnoFacturacionPage() {
   const { data: subscription } = await admin
     .from("subscriptions")
     .select("*")
-    .eq("profile_id", user.id)
+    .eq("student_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

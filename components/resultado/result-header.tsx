@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, AlertCircle, CalendarDays } from "lucide-react";
 import type { ResultData } from "@/lib/exam/result-loader";
+import { DownloadPdfButton } from "./download-pdf-button";
 
 interface Props {
   data: ResultData;
@@ -48,13 +49,20 @@ export function ResultHeader({ data }: Props) {
   return (
     <div className="mb-8">
       {/* Meta arriba */}
-      <p className="text-xs uppercase tracking-wider text-navy font-medium">
-        {data.exam_level} · Mock {data.mock_number ?? "—"} · Resultado del paper
-      </p>
-      <h1 className="text-3xl font-semibold text-ink tracking-tight mt-1">
-        {data.paper_title}
-      </h1>
-      <p className="text-sm text-muted mt-2">{data.exam_title}</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-navy font-medium">
+            {data.exam_level} · Mock {data.mock_number ?? "—"} · Resultado del paper
+          </p>
+          <h1 className="text-3xl font-semibold text-ink tracking-tight mt-1">
+            {data.paper_title}
+          </h1>
+          <p className="text-sm text-muted mt-2">{data.exam_title}</p>
+        </div>
+        <DownloadPdfButton
+          filenameHint={`Acertlio - ${data.exam_level} Mock ${data.mock_number ?? ""} - ${data.paper_title}`.trim()}
+        />
+      </div>
 
       {/* Card principal con la nota */}
       {!isWritingPaper ? (

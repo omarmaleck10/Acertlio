@@ -112,3 +112,66 @@
 /* Alto contraste: reforzar bordes */
 .sim-root[data-theme="high-contrast"] .border-rule { border-color: #000000; }
 .sim-root[data-theme="high-contrast"] .text-muted { color: #333333; }
+
+
+/* ─── ESTILOS DE IMPRESIÓN (para descarga PDF de resultado) ────────── */
+@media print {
+  /* Ocultar sidebar del dashboard, botones, navegación */
+  aside,
+  nav,
+  .print\:hidden,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Fondo blanco para papel + sin sombras */
+  body,
+  html {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Sin bordes redondeados excesivos */
+  .rounded-lg,
+  .rounded {
+    box-shadow: none !important;
+  }
+
+  /* Que el contenido ocupe toda la página, sin padding del layout */
+  main,
+  [role="main"] {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Los sticky no funcionan bien al imprimir */
+  .sticky,
+  .lg\:sticky {
+    position: static !important;
+  }
+
+  /* Grid a 1 columna en print (no queremos sidebar del resultado) */
+  .grid.grid-cols-1.lg\:grid-cols-\[1fr_320px\] {
+    display: block !important;
+  }
+
+  /* Ajustar tipografía para print */
+  h1 {
+    font-size: 20pt !important;
+  }
+  h2 {
+    font-size: 14pt !important;
+  }
+
+  /* Evitar cortes feos en el medio de las Parts */
+  section,
+  article {
+    page-break-inside: avoid;
+  }
+
+  /* Márgenes de página */
+  @page {
+    margin: 15mm 12mm;
+    size: A4;
+  }
+}

@@ -174,13 +174,15 @@ export async function activateIndividualRegistrationAction(
       : session.subscription?.id;
 
   if (subscriptionId) {
-    await admin.from("subscriptions").upsert(
+    const { error: subError } = await admin.from("subscriptions").upsert(
       {
         stripe_subscription_id: subscriptionId,
         stripe_customer_id: reg.stripe_customer_id ?? "",
-        profile_id: userId,
+        student_id: userId,
         plan_type: "individual",
-        plan_key: `individual_${reg.billing_interval}`,
+        plan: "individual", // requerido NOT NULL (enum academy_plan)
+        billing_interval: reg.billing_interval,
+        target_level: reg.target_level,
         status: "trialing",
         current_period_end: trialEndsAt.toISOString(),
         trial_ends_at: trialEndsAt.toISOString(),
@@ -188,6 +190,16 @@ export async function activateIndividualRegistrationAction(
       },
       { onConflict: "stripe_subscription_id" }
     );
+
+    if (subError) {
+      // No bloqueamos el resto del flujo — el profile ya existe, solo
+      // no hemos podido reflejar la subscription en BD. Se puede
+      // reparar manualmente después.
+      console.error(
+        "Individual subscription upsert failed:",
+        subError.message
+      );
+    }
   }
 
   // 6. Enviar email de bienvenida con link al login

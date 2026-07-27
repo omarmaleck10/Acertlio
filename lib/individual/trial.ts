@@ -87,7 +87,7 @@ export async function getIndividualStatus(
   const { data: sub } = await admin
     .from("subscriptions")
     .select("status")
-    .eq("profile_id", profile.id)
+    .eq("student_id", profile.id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
