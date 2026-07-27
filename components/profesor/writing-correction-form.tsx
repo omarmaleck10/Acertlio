@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Trophy,
   ArrowRight,
+  Mail,
 } from "lucide-react";
 import {
   saveWritingCorrectionAction,
@@ -220,6 +221,29 @@ export function WritingCorrectionForm({
           <span>{state.success}</span>
         </div>
       )}
+
+      {/* Notificación al alumno */}
+      <div className="px-5 py-3 border-t border-rule bg-white">
+        <label className="flex items-start gap-2.5 cursor-pointer group">
+          <input
+            type="checkbox"
+            name="notify_student"
+            defaultChecked
+            className="mt-0.5 h-4 w-4 rounded border-rule text-navy focus:ring-navy cursor-pointer"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5 text-sm text-ink font-medium">
+              <Mail className="h-3.5 w-3.5 text-navy" />
+              Notificar al alumno por email
+            </div>
+            <p className="text-xs text-muted mt-0.5 leading-relaxed">
+              El alumno recibirá un email con la nota y un botón para ver
+              su corrección. Desmárcalo si prefieres corregir varios writings
+              y avisar más tarde.
+            </p>
+          </div>
+        </label>
+      </div>
 
       {/* Botones */}
       <div className="px-5 py-4 border-t border-rule bg-paper flex flex-col gap-2">

@@ -27,6 +27,7 @@ export async function saveWritingCorrectionAction(
   const languageScoreRaw = String(formData.get("language_score") ?? "").trim();
   const feedback = String(formData.get("feedback") ?? "").trim();
   const redirectTo = String(formData.get("redirect_to") ?? "").trim();
+  const notifyStudent = String(formData.get("notify_student") ?? "").trim() === "on";
 
   if (!attemptId || !questionId) {
     return { error: "Faltan datos de la corrección.", success: null };
@@ -77,7 +78,7 @@ export async function saveWritingCorrectionAction(
   // Verificar attempt + academia
   const { data: attempt } = await admin
     .from("attempts")
-    .select("id, academy_id, student_id")
+    .select("id, academy_id, student_id, exam_id")
     .eq("id", attemptId)
     .maybeSingle();
 
@@ -145,6 +146,101 @@ export async function saveWritingCorrectionAction(
     await recalculateAttemptScore(attemptId);
   } catch (e) {
     console.error("Recalculate failed:", e);
+  }
+
+  // ─── Notificación email al alumno (Fase C.2) ─────────────────
+  // Se envía solo si:
+  //   · notifyStudent=true (checkbox marcado en el form)
+  //   · el alumno NO es individual (los individuales no reciben este email)
+  //   · no se envió antes (notification_sent_at IS NULL)
+  if (notifyStudent) {
+    try {
+      // Cargar la corrección recién guardada para saber si ya se notificó
+      const { data: correction } = await admin
+        .from("writing_corrections")
+        .select("id, notification_sent_at")
+        .eq("attempt_id", attemptId)
+        .eq("question_id", questionId)
+        .maybeSingle();
+
+      if (correction && !correction.notification_sent_at) {
+        // Cargar datos del alumno
+        const { data: student } = await admin
+          .from("profiles")
+          .select("id, full_name, email, is_individual, academy_id")
+          .eq("id", attempt.student_id)
+          .maybeSingle();
+
+        const isIndividual = Boolean(
+          (student as unknown as Record<string, unknown>)?.is_individual
+        );
+
+        if (student && student.email && !isIndividual) {
+          // Cargar datos del examen y del paper
+          const { data: examData } = await admin
+            .from("exams")
+            .select("id, title, level")
+            .eq("id", (attempt as unknown as Record<string, unknown>).exam_id as string)
+            .maybeSingle();
+
+          // Buscar el paper que contiene esta question
+          const { data: paperData } = await admin
+            .from("questions")
+            .select("part:parts(paper:exam_papers(id, code, title))")
+            .eq("id", questionId)
+            .maybeSingle();
+
+          const paper = (paperData as unknown as {
+            part?: { paper?: { code: string; title: string } };
+          } | null)?.part?.paper;
+
+          // Cargar academia
+          const { data: academyData } = student.academy_id
+            ? await admin
+                .from("academies")
+                .select("name")
+                .eq("id", student.academy_id)
+                .maybeSingle()
+            : { data: null };
+
+          if (examData && paper) {
+            const { sendWritingCorrectionEmail } = await import(
+              "@/lib/email/writing-correction"
+            );
+            const { siteConfig } = await import("@/lib/site-config");
+
+            const resultUrl = `${siteConfig.url}/alumno/examenes/${examData.id}/${paper.code}/resultado`;
+
+            const emailResult = await sendWritingCorrectionEmail({
+              studentEmail: student.email,
+              studentName: student.full_name ?? "alumno",
+              teacherName: profile.full_name ?? null,
+              academyName: academyData?.name ?? "Acertlio",
+              examTitle: examData.title,
+              examLevel: examData.level,
+              paperName: paper.title || "Writing",
+              totalScore,
+              maxScore: 20,
+              hasFeedback: Boolean(feedback),
+              resultUrl,
+            });
+
+            // Marcar como notificado
+            if (emailResult.success) {
+              await admin
+                .from("writing_corrections")
+                .update({
+                  notification_sent_at: new Date().toISOString(),
+                })
+                .eq("id", correction.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // No bloqueamos el guardado si el email falla — solo lo logueamos
+      console.error("Writing correction email failed:", e);
+    }
   }
 
   revalidatePath(`/profesor/simulacros/${attemptId}`);
