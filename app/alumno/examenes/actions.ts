@@ -50,6 +50,53 @@ export async function startOrResumePaperAction(
   if (!paper) return { error: "Este paper no existe en el examen." };
   if (!paper.is_available) return { error: "Este paper aún no está disponible." };
 
+  // ─── Guard: alumnos individuales — verificar suscripción/trial ─────
+  const isIndividual = Boolean(
+    (user.profile as unknown as Record<string, unknown>).is_individual
+  );
+
+  if (isIndividual) {
+    const { getIndividualStatus, canStartMock } = await import(
+      "@/lib/individual/trial"
+    );
+    const status = await getIndividualStatus({
+      id: user.id,
+      is_individual: true,
+      trial_ends_at:
+        ((user.profile as unknown as Record<string, unknown>)
+          .trial_ends_at as string | null) ?? null,
+      current_level:
+        ((user.profile as unknown as Record<string, unknown>)
+          .current_level as string | null) ?? null,
+    });
+
+    const check = await canStartMock(user.id, examId, status);
+    if (!check.allowed) {
+      return {
+        error: check.reason === "trial_cap_reached"
+          ? "TRIAL_CAP_REACHED"
+          : check.reason ?? "No puedes empezar este mock.",
+      };
+    }
+
+    // Verificar nivel del examen coincide con el nivel del alumno
+    const { data: examLevel } = await admin
+      .from("exams")
+      .select("level")
+      .eq("id", examId)
+      .maybeSingle();
+
+    if (
+      examLevel?.level &&
+      status.cambridge_level &&
+      examLevel.level !== status.cambridge_level
+    ) {
+      return {
+        error: `Este mock es de nivel ${examLevel.level}. Tu suscripción es de ${status.cambridge_level}.`,
+      };
+    }
+  }
+
   // 2. Buscar o crear el attempt agrupador
   const { data: existingAttempt } = await admin
     .from("attempts")
@@ -62,17 +109,21 @@ export async function startOrResumePaperAction(
     .maybeSingle();
 
   let attemptId: string;
-  let academyId: string;
+  let academyId: string | null;
 
   if (existingAttempt) {
     attemptId = existingAttempt.id;
     academyId = existingAttempt.academy_id;
   } else {
     // Crear nuevo attempt agrupador
-    if (!user.profile.academy_id) {
-      return { error: "Tu cuenta no está asociada a ninguna academia." };
+    if (isIndividual) {
+      academyId = null;
+    } else {
+      if (!user.profile.academy_id) {
+        return { error: "Tu cuenta no está asociada a ninguna academia." };
+      }
+      academyId = user.profile.academy_id;
     }
-    academyId = user.profile.academy_id;
 
     const { data: newAttempt, error: attemptErr } = await admin
       .from("attempts")

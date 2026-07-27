@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { DashboardSidebar, SidebarItem } from "@/components/dashboard/sidebar";
 import { getCurrentUser } from "@/lib/supabase/user";
-import { LayoutDashboard, BookOpenCheck, History, BarChart3 } from "lucide-react";
+import { LayoutDashboard, BookOpenCheck, History, BarChart3, CreditCard } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Panel alumno",
   robots: { index: false, follow: false },
 };
 
-const items: SidebarItem[] = [
+const baseItems: SidebarItem[] = [
   { label: "Resumen", href: "/alumno", icon: <LayoutDashboard /> },
   { label: "Simulacros", href: "/alumno/simulacros", icon: <BookOpenCheck /> },
   { label: "Historial", href: "/alumno/historial", icon: <History /> },
@@ -21,6 +21,21 @@ export default async function AlumnoLayout({ children }: { children: React.React
   if (!user) redirect("/login");
 
   const displayName = user.profile.full_name || user.email;
+
+  const isIndividual = Boolean(
+    (user.profile as unknown as Record<string, unknown>).is_individual
+  );
+
+  const items: SidebarItem[] = isIndividual
+    ? [
+        ...baseItems,
+        {
+          label: "Facturación",
+          href: "/alumno/facturacion",
+          icon: <CreditCard />,
+        },
+      ]
+    : baseItems;
 
   return (
     <div className="flex bg-paper min-h-screen">

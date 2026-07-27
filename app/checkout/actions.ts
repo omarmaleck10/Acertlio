@@ -247,6 +247,14 @@ export async function openBillingPortalAction(
     returnUrl = `${siteConfig.url}/academia/facturacion`;
   }
 
+  // Si es alumno individual, volver a facturación de alumno
+  const isIndividual = Boolean(
+    (profile as unknown as Record<string, unknown>).is_individual
+  );
+  if (isIndividual) {
+    returnUrl = `${siteConfig.url}/alumno/facturacion`;
+  }
+
   if (!customerId) return { error: "No hay ningún método de pago vinculado todavía." };
 
   const session = await stripe.billingPortal.sessions.create({
