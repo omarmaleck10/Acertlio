@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
-import { AlertCircle, Loader2, ArrowRight, Lock } from "lucide-react";
+import { AlertCircle, Loader2, ArrowRight, Lock, Eye, EyeOff } from "lucide-react";
 import {
   startIndividualRegistrationAction,
   type IndividualRegistrationResult,
@@ -50,8 +50,15 @@ export function IndividualRegistrationForm({
   const [interval, setInterval] = useState<"monthly" | "yearly">(defaultInterval);
   const [referralSource, setReferralSource] = useState<string>("");
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const err = state.fieldErrors ?? {};
+  const passwordsDontMatch =
+    password.length > 0 &&
+    confirmPassword.length > 0 &&
+    password !== confirmPassword;
 
   return (
     <form
@@ -95,15 +102,81 @@ export function IndividualRegistrationForm({
           } bg-white text-sm text-ink px-3 py-2.5 focus:outline-none focus:border-navy transition-colors`}
         />
         <p className="text-xs text-muted mt-1">
-          Recibirás un enlace de acceso en este email después del pago.
+          Con este email accederás a tu cuenta.
         </p>
         {err.email && <p className="text-xs text-error mt-1">{err.email}</p>}
       </div>
 
-      {/* 3. Nivel */}
+      {/* 3. Contraseña */}
       <div>
         <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
-          3. ¿Qué nivel quieres preparar?
+          3. Elige una contraseña
+        </label>
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            name="password"
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mínimo 8 caracteres"
+            autoComplete="new-password"
+            className={`w-full rounded border ${
+              err.password ? "border-error" : "border-rule"
+            } bg-white text-sm text-ink px-3 py-2.5 pr-10 focus:outline-none focus:border-navy transition-colors`}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink p-1"
+            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+        {err.password && (
+          <p className="text-xs text-error mt-1">{err.password}</p>
+        )}
+      </div>
+
+      {/* 4. Confirmar contraseña */}
+      <div>
+        <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
+          4. Confirma tu contraseña
+        </label>
+        <input
+          type={showPassword ? "text" : "password"}
+          name="password_confirm"
+          required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Repite la contraseña"
+          autoComplete="new-password"
+          className={`w-full rounded border ${
+            passwordsDontMatch || err.password_confirm
+              ? "border-error"
+              : "border-rule"
+          } bg-white text-sm text-ink px-3 py-2.5 focus:outline-none focus:border-navy transition-colors`}
+        />
+        {passwordsDontMatch && (
+          <p className="text-xs text-error mt-1">
+            Las contraseñas no coinciden.
+          </p>
+        )}
+        {err.password_confirm && !passwordsDontMatch && (
+          <p className="text-xs text-error mt-1">{err.password_confirm}</p>
+        )}
+      </div>
+
+      {/* 5. Nivel */}
+      <div>
+        <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
+          5. ¿Qué nivel quieres preparar?
         </label>
         <select
           name="target_level"
@@ -131,10 +204,10 @@ export function IndividualRegistrationForm({
         )}
       </div>
 
-      {/* 4. Cómo nos conociste */}
+      {/* 6. Cómo nos conociste */}
       <div>
         <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
-          4. ¿Cómo nos has conocido?
+          6. ¿Cómo nos has conocido?
         </label>
         <select
           name="referral_source"
@@ -176,10 +249,10 @@ export function IndividualRegistrationForm({
         )}
       </div>
 
-      {/* 5. Facturación */}
+      {/* 7. Facturación */}
       <div>
         <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
-          5. Facturación
+          7. Facturación
         </label>
         <input type="hidden" name="interval" value={interval} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -254,7 +327,12 @@ export function IndividualRegistrationForm({
       {/* Submit */}
       <button
         type="submit"
-        disabled={pending}
+        disabled={
+          pending ||
+          passwordsDontMatch ||
+          password.length < 8 ||
+          confirmPassword.length < 8
+        }
         className="w-full inline-flex items-center justify-center gap-2 rounded bg-navy px-6 py-3.5 text-sm font-semibold text-white hover:bg-navy/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {pending ? (

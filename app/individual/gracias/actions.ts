@@ -67,7 +67,7 @@ export async function activateIndividualRegistrationAction(
     return { error: "El pago aún no está confirmado en Stripe." };
   }
 
-  // 3. Crear auth user (email pre-confirmado)
+  // 3. Crear auth user (con contraseña del formulario)
   let userId: string;
   const existingUser = await admin.auth.admin.listUsers();
   const foundUser = existingUser.data.users.find(
@@ -76,10 +76,28 @@ export async function activateIndividualRegistrationAction(
 
   if (foundUser) {
     userId = foundUser.id;
+    // Si el usuario ya existe (raro pero posible), actualizamos su
+    // contraseña por la del formulario. Así el alumno puede entrar
+    // con las credenciales que eligió.
+    if (reg.pending_password) {
+      await admin.auth.admin.updateUserById(userId, {
+        password: reg.pending_password,
+        email_confirm: true,
+      });
+    }
   } else {
+    const password = reg.pending_password;
+    if (!password) {
+      return {
+        error:
+          "No se guardó la contraseña durante el registro. Contacta con soporte.",
+      };
+    }
+
     const { data: created, error: createErr } =
       await admin.auth.admin.createUser({
         email: reg.email,
+        password,
         email_confirm: true,
         user_metadata: {
           full_name: reg.full_name,
@@ -172,39 +190,28 @@ export async function activateIndividualRegistrationAction(
     );
   }
 
-  // 6. Generar magic link y enviar email
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink(
-    {
-      type: "magiclink",
+  // 6. Enviar email de bienvenida con link al login
+  await sendEmail({
+    to: reg.email,
+    toName: reg.full_name,
+    subject: "¡Bienvenido a Acertlio!",
+    htmlContent: buildWelcomeHtml({
+      fullName: reg.full_name,
+      level: reg.target_level,
       email: reg.email,
-      options: {
-        redirectTo: `${siteConfig.url}/alumno`,
-      },
-    }
-  );
+      loginUrl: `${siteConfig.url}/login`,
+    }),
+    textContent: `Hola ${reg.full_name},\n\n¡Bienvenido a Acertlio! Ya puedes acceder a tu cuenta con las credenciales que elegiste durante el registro:\n\nEmail: ${reg.email}\nContraseña: la que tú elegiste\n\nAccede aquí: ${siteConfig.url}/login\n\nHas contratado el plan Individual ${reg.target_level}. Empiezas con 7 días de prueba y hasta 3 simulacros gratis.\n\n— El equipo de Acertlio`,
+  });
 
-  if (!linkErr && linkData?.properties?.action_link) {
-    const magicUrl = linkData.properties.action_link;
-    await sendEmail({
-      to: reg.email,
-      toName: reg.full_name,
-      subject: "Tu acceso a Acertlio",
-      htmlContent: buildWelcomeHtml({
-        fullName: reg.full_name,
-        level: reg.target_level,
-        magicUrl,
-      }),
-      textContent: `Hola ${reg.full_name},\n\n¡Bienvenido a Acertlio! Accede a tu cuenta con este enlace (válido durante 1 hora):\n\n${magicUrl}\n\nHas contratado el plan Individual ${reg.target_level}. Empiezas con 7 días de prueba y hasta 3 simulacros gratis.\n\nSi no encuentras el email más tarde, siempre puedes solicitar otro enlace desde https://acertlio.com/login\n\n— El equipo de Acertlio`,
-    });
-  }
-
-  // 7. Marcar registration como completada
+  // 7. Marcar registration como completada y BORRAR la contraseña temporal
   await admin
     .from("individual_registrations")
     .update({
       status: "completed",
       profile_id: userId,
       stripe_subscription_id: subscriptionId ?? null,
+      pending_password: null, // limpieza de seguridad
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -217,7 +224,8 @@ export async function activateIndividualRegistrationAction(
 function buildWelcomeHtml(params: {
   fullName: string;
   level: string;
-  magicUrl: string;
+  email: string;
+  loginUrl: string;
 }): string {
   return `
 <!DOCTYPE html>
@@ -234,23 +242,32 @@ function buildWelcomeHtml(params: {
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 8px 0;font-size:12px;color:#C5894A;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">
-            Tu acceso está listo
+            Tu cuenta está lista
           </p>
           <h1 style="margin:0 0 20px 0;font-size:24px;color:#0A0E1A;font-weight:600;line-height:1.3;">
-            Hola ${params.fullName},
+            ¡Bienvenido, ${params.fullName}!
           </h1>
           <p style="margin:0 0 20px 0;font-size:15px;color:#0A0E1A;line-height:1.6;">
-            Ya tienes acceso a los simulacros del nivel <strong>${params.level}</strong>. Pulsa el botón para entrar en tu cuenta:
+            Ya puedes acceder a los simulacros del nivel <strong>${params.level}</strong> con las credenciales que elegiste durante el registro.
           </p>
+
+          <div style="background:#FAFAF7;border:1px solid #E7E5E0;border-radius:6px;padding:16px;margin:20px 0;">
+            <p style="margin:0;font-size:13px;color:#6B7280;">
+              <strong style="color:#0A0E1A;">Email:</strong> ${params.email}<br>
+              <strong style="color:#0A0E1A;">Contraseña:</strong> la que tú elegiste
+            </p>
+          </div>
+
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0;">
             <tr><td style="background:#0B1F4F;border-radius:4px;">
-              <a href="${params.magicUrl}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
-                Acceder a mi cuenta →
+              <a href="${params.loginUrl}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
+                Iniciar sesión →
               </a>
             </td></tr>
           </table>
+
           <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6;">
-            El enlace es válido durante <strong>1 hora</strong>. Después, puedes solicitar otro desde la página de login.
+            Si olvidas tu contraseña, podrás recuperarla desde la pantalla de login.
           </p>
           <hr style="border:none;border-top:1px solid #E7E5E0;margin:24px 0;">
           <p style="margin:0 0 8px 0;font-size:13px;color:#0A0E1A;font-weight:600;">

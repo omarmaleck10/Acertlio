@@ -88,8 +88,8 @@ export default async function IndividualGraciasPage({ searchParams }: Props) {
           </h1>
           <p className="text-sm text-muted leading-relaxed mb-6">
             Ya tienes acceso a los simulacros de{" "}
-            <strong className="text-navy">{reg.target_level}</strong>. Te hemos
-            enviado un email con un enlace para acceder a tu cuenta.
+            <strong className="text-navy">{reg.target_level}</strong>. Puedes
+            entrar con tu email y la contraseña que elegiste al registrarte.
           </p>
 
           <div className="rounded border border-navy/20 bg-navy/5 p-4 mb-6">
@@ -97,25 +97,25 @@ export default async function IndividualGraciasPage({ searchParams }: Props) {
               <Mail className="h-5 w-5 text-navy flex-shrink-0" />
               <div className="text-left">
                 <p className="text-sm font-medium text-ink">
-                  Revisa tu email
+                  Te hemos enviado un email de confirmación
                 </p>
                 <p className="text-xs text-muted mt-0.5">
-                  Enviado a <strong className="text-ink">{reg.email}</strong>
+                  A <strong className="text-ink">{reg.email}</strong>
                 </p>
               </div>
             </div>
           </div>
 
           <p className="text-xs text-muted mb-6 leading-relaxed">
-            El enlace es válido durante 1 hora. Si no encuentras el email,
-            revisa tu carpeta de spam.
+            Si no encuentras el email, revisa tu carpeta de spam o entra
+            directamente desde el botón de abajo.
           </p>
 
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 text-sm font-medium text-navy hover:text-ink transition-colors"
+            className="inline-flex items-center gap-2 rounded bg-navy px-6 py-2.5 text-sm font-semibold text-white hover:bg-navy/90 transition-colors"
           >
-            O accede desde la página de login
+            Iniciar sesión
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>

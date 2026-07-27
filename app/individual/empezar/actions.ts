@@ -15,6 +15,8 @@ export type IndividualRegistrationResult = {
   fieldErrors?: Partial<{
     email: string;
     full_name: string;
+    password: string;
+    password_confirm: string;
     target_level: string;
     referral_source: string;
     referral_other: string;
@@ -54,6 +56,8 @@ export async function startIndividualRegistrationAction(
   // ─── Extraer y validar ─────────────────────────────────────────
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fullName = String(formData.get("full_name") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const passwordConfirm = String(formData.get("password_confirm") ?? "");
   const targetLevel = String(formData.get("target_level") ?? "")
     .trim()
     .toUpperCase();
@@ -70,6 +74,17 @@ export async function startIndividualRegistrationAction(
   if (!fullName) fieldErrors.full_name = "Escribe tu nombre completo.";
   else if (fullName.length < 2)
     fieldErrors.full_name = "Nombre demasiado corto.";
+
+  if (!password) fieldErrors.password = "La contraseña es obligatoria.";
+  else if (password.length < 8)
+    fieldErrors.password = "Mínimo 8 caracteres.";
+  else if (password.length > 72)
+    fieldErrors.password = "Máximo 72 caracteres.";
+
+  if (!passwordConfirm)
+    fieldErrors.password_confirm = "Confirma tu contraseña.";
+  else if (password && password !== passwordConfirm)
+    fieldErrors.password_confirm = "Las contraseñas no coinciden.";
 
   if (!targetLevel) fieldErrors.target_level = "Elige un nivel.";
   else if (!VALID_LEVELS.includes(targetLevel as (typeof VALID_LEVELS)[number]))
@@ -119,6 +134,7 @@ export async function startIndividualRegistrationAction(
       referral_source: referralSource,
       referral_other: referralSource === "other" ? referralOther : null,
       billing_interval: interval,
+      pending_password: password,
       status: "pending",
     })
     .select("id")
