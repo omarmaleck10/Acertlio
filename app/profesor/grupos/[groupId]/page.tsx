@@ -7,10 +7,16 @@ import {
   Calendar,
   ClipboardList,
   User,
+  BarChart3,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadGroupDetail } from "@/lib/groups/loader";
+import { loadGroupStats } from "@/lib/stats/group";
+import { GroupOverviewCards } from "@/components/profesor/stats/group-overview-cards";
+import { GroupComparisonCard } from "@/components/profesor/stats/group-comparison-card";
+import { AttentionSection } from "@/components/profesor/stats/attention-section";
+import { TopSection } from "@/components/profesor/stats/top-section";
 
 interface Props {
   params: { groupId: string };
@@ -46,7 +52,7 @@ export default async function ProfesorGrupoDetallePage({ params }: Props) {
 
   const admin = createAdminClient();
 
-  // Verificar visibilidad (mismo criterio que RLS)
+  // Verificar visibilidad
   const { data: groupCheck } = await admin
     .from("student_groups")
     .select("academy_id, teacher_id")
@@ -78,7 +84,14 @@ export default async function ProfesorGrupoDetallePage({ params }: Props) {
     );
   }
 
-  // Query params para pre-seleccionar grupo en el formulario de asignaciones
+  // Cargar stats agregadas del grupo
+  const stats = await loadGroupStats({
+    groupId: group.id,
+    academyId: groupCheck?.academy_id ?? profile.academy_id!,
+    groupLevel: group.level,
+  });
+
+  const hasStatsData = stats.kpis.members_with_data > 0;
   const assignHref = `/profesor/asignaciones/nueva?groupId=${group.id}`;
 
   return (
@@ -115,7 +128,8 @@ export default async function ProfesorGrupoDetallePage({ params }: Props) {
           <div className="flex items-center gap-4 mt-4 text-sm text-muted flex-wrap">
             <span className="inline-flex items-center gap-1.5">
               <GraduationCap className="h-3.5 w-3.5" />
-              Profesor: <strong className="text-ink font-medium">
+              Profesor:{" "}
+              <strong className="text-ink font-medium">
                 {group.teacher_name}
               </strong>
             </span>
@@ -142,58 +156,96 @@ export default async function ProfesorGrupoDetallePage({ params }: Props) {
         )}
       </header>
 
-      <section>
-        <h2 className="text-sm font-medium text-ink uppercase tracking-wider mb-4">
-          Miembros del grupo
-        </h2>
-
-        {group.members.length === 0 ? (
-          <div className="rounded-lg border border-rule bg-white p-8 text-center">
-            <p className="text-sm text-muted">
-              Este grupo aún no tiene alumnos.
-              {isAdmin && (
-                <>
-                  {" "}
-                  <Link
-                    href={`/academia/grupos/${group.id}`}
-                    className="text-navy underline hover:text-ink"
-                  >
-                    Añádelos desde el panel de admin
-                  </Link>
-                  .
-                </>
-              )}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-rule bg-white overflow-hidden">
-            <div className="divide-y divide-rule">
-              {group.members.map((m) => (
+      {group.member_count === 0 ? (
+        <div className="rounded-lg border border-rule bg-white p-8 text-center">
+          <p className="text-sm text-muted">
+            Este grupo aún no tiene alumnos.
+            {isAdmin && (
+              <>
+                {" "}
                 <Link
-                  key={m.student_id}
-                  href={`/profesor/alumnos/${m.student_id}`}
-                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-paper transition-colors group"
+                  href={`/academia/grupos/${group.id}`}
+                  className="text-navy underline hover:text-ink"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <User className="h-4 w-4 text-muted flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink truncate group-hover:underline">
-                        {m.full_name}
-                      </p>
-                      <p className="text-xs text-muted truncate">{m.email}</p>
-                    </div>
-                    {m.level && (
-                      <span className="text-[10px] uppercase tracking-wider text-navy font-semibold px-2 py-0.5 rounded bg-navy/5 flex-shrink-0">
-                        {m.level}
-                      </span>
-                    )}
-                  </div>
+                  Añádelos desde el panel de admin
                 </Link>
-              ))}
+                .
+              </>
+            )}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Stats agregadas del grupo (solo si algún alumno tiene mocks) */}
+          {hasStatsData ? (
+            <>
+              <section className="mb-8">
+                <h2 className="text-sm font-medium text-ink uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-saffron" />
+                  Panorama del grupo
+                </h2>
+                <GroupOverviewCards kpis={stats.kpis} />
+              </section>
+
+              <GroupComparisonCard
+                comparison={stats.comparison}
+                groupLevel={group.level}
+              />
+
+              <AttentionSection
+                lowScore={stats.attention_low_score}
+                inactive={stats.attention_inactive}
+              />
+
+              <TopSection students={stats.top_students} />
+            </>
+          ) : (
+            <div className="rounded-lg border border-navy/20 bg-navy/5 p-5 mb-8">
+              <p className="text-sm text-ink">
+                <strong>Los alumnos del grupo aún no han completado ningún mock.</strong>
+              </p>
+              <p className="text-xs text-muted mt-1 leading-relaxed">
+                Cuando terminen su primer mock, empezarán a aparecer aquí las
+                estadísticas del grupo: media, comparativa con la academia,
+                atención y destacados.
+              </p>
             </div>
-          </div>
-        )}
-      </section>
+          )}
+
+          {/* Lista completa de miembros */}
+          <section>
+            <h2 className="text-sm font-medium text-ink uppercase tracking-wider mb-4">
+              Miembros del grupo
+            </h2>
+            <div className="rounded-lg border border-rule bg-white overflow-hidden">
+              <div className="divide-y divide-rule">
+                {group.members.map((m) => (
+                  <Link
+                    key={m.student_id}
+                    href={`/profesor/alumnos/${m.student_id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-paper transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <User className="h-4 w-4 text-muted flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-ink truncate group-hover:underline">
+                          {m.full_name}
+                        </p>
+                        <p className="text-xs text-muted truncate">{m.email}</p>
+                      </div>
+                      {m.level && (
+                        <span className="text-[10px] uppercase tracking-wider text-navy font-semibold px-2 py-0.5 rounded bg-navy/5 flex-shrink-0">
+                          {m.level}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
