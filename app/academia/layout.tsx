@@ -10,6 +10,7 @@ import {
   BarChart3,
   Receipt,
   Settings,
+  Users2,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ const items: SidebarItem[] = [
   { label: "Licencias", href: "/academia/licencias", icon: <Ticket /> },
   { label: "Profesores", href: "/academia/profesores", icon: <Users /> },
   { label: "Alumnos", href: "/academia/alumnos", icon: <GraduationCap /> },
+  { label: "Grupos", href: "/academia/grupos", icon: <Users2 /> },
   { label: "Estadísticas", href: "/academia/estadisticas", icon: <BarChart3 /> },
   { label: "Facturación", href: "/academia/facturacion", icon: <Receipt /> },
   { label: "Configuración", href: "/academia/configuracion", icon: <Settings /> },
