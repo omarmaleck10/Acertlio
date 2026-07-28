@@ -6,7 +6,11 @@ import { AssignmentForm } from "@/components/profesor/assignment-form";
 import type { ExamOption } from "@/components/profesor/assignment-form";
 import type { StudentOption } from "@/components/profesor/student-multi-select";
 
-export default async function NuevaAsignacionPage() {
+export default async function NuevaAsignacionPage({
+  searchParams,
+}: {
+  searchParams: { groupId?: string };
+}) {
   const user = await getCurrentUser();
   if (!user) return null;
 
@@ -75,6 +79,55 @@ export default async function NuevaAsignacionPage() {
     }));
   }
 
+  // Cargar grupos del profesor (o todos si es admin) + sus miembros
+  let groups: {
+    id: string;
+    name: string;
+    level: string | null;
+    member_count: number;
+    student_ids: string[];
+  }[] = [];
+
+  let groupsQuery = admin
+    .from("student_groups")
+    .select("id, name, level, teacher_id")
+    .eq("academy_id", profile.academy_id)
+    .eq("is_archived", false);
+
+  if (!isAdmin) {
+    groupsQuery = groupsQuery.eq("teacher_id", user.id);
+  }
+
+  const { data: groupsData } = await groupsQuery.order("name", {
+    ascending: true,
+  });
+
+  if (groupsData && groupsData.length > 0) {
+    const groupIds = groupsData.map((g) => g.id);
+    const { data: membersData } = await admin
+      .from("student_group_members")
+      .select("group_id, student_id")
+      .in("group_id", groupIds);
+
+    const memberByGroup = new Map<string, string[]>();
+    (membersData ?? []).forEach((m) => {
+      const arr = memberByGroup.get(m.group_id) ?? [];
+      arr.push(m.student_id);
+      memberByGroup.set(m.group_id, arr);
+    });
+
+    groups = groupsData.map((g) => {
+      const ids = memberByGroup.get(g.id) ?? [];
+      return {
+        id: g.id,
+        name: g.name,
+        level: g.level,
+        member_count: ids.length,
+        student_ids: ids,
+      };
+    });
+  }
+
   return (
     <div className="px-6 md:px-8 py-8 max-w-4xl">
       <Link
@@ -112,7 +165,12 @@ export default async function NuevaAsignacionPage() {
           </p>
         </div>
       ) : (
-        <AssignmentForm exams={exams} students={students} />
+        <AssignmentForm
+          exams={exams}
+          students={students}
+          groups={groups}
+          prefillGroupId={searchParams.groupId}
+        />
       )}
     </div>
   );

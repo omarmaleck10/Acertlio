@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Send, Loader2 } from "lucide-react";
+import { AlertCircle, Send, Loader2, Users2, CheckCircle2 } from "lucide-react";
 import { StudentMultiSelect, type StudentOption } from "./student-multi-select";
+import {
+  GroupPickerModal,
+  type GroupPickerOption,
+} from "./group-picker-modal";
 import { createAssignmentsAction } from "@/app/profesor/asignaciones/actions";
 
 export interface ExamOption {
@@ -16,9 +20,16 @@ export interface ExamOption {
 interface Props {
   exams: ExamOption[];
   students: StudentOption[];
+  groups?: GroupPickerOption[];
+  prefillGroupId?: string; // si viene de "asignar mock al grupo"
 }
 
-export function AssignmentForm({ exams, students }: Props) {
+export function AssignmentForm({
+  exams,
+  students,
+  groups = [],
+  prefillGroupId,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -27,6 +38,19 @@ export function AssignmentForm({ exams, students }: Props) {
   const [hasDueDate, setHasDueDate] = useState(false);
   const [dueDate, setDueDate] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [lastPickedGroup, setLastPickedGroup] = useState<string | null>(null);
+
+  // Precargar alumnos de un grupo si viene por query param
+  useEffect(() => {
+    if (!prefillGroupId || groups.length === 0) return;
+    const g = groups.find((x) => x.id === prefillGroupId);
+    if (g && g.student_ids.length > 0) {
+      setSelectedStudents(g.student_ids);
+      setLastPickedGroup(g.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillGroupId]);
 
   const selectedExam = exams.find((e) => e.id === examId);
 
@@ -114,9 +138,33 @@ export function AssignmentForm({ exams, students }: Props) {
 
       {/* 2. Selector alumnos */}
       <section>
-        <label className="text-xs uppercase tracking-wider text-navy font-medium mb-2 block">
-          2. Alumnos
-        </label>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label className="text-xs uppercase tracking-wider text-navy font-medium">
+            2. Alumnos
+          </label>
+          {groups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setGroupModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs text-navy hover:text-ink font-medium transition-colors"
+            >
+              <Users2 className="h-3.5 w-3.5" />
+              Elegir de grupo
+            </button>
+          )}
+        </div>
+
+        {lastPickedGroup && (
+          <div className="mb-3 rounded border border-ok/30 bg-ok/5 p-2.5 flex items-start gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-ok flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-ink leading-relaxed">
+              Cargados los alumnos del grupo{" "}
+              <strong>&ldquo;{lastPickedGroup}&rdquo;</strong>. Puedes quitar
+              alumnos concretos si es necesario.
+            </p>
+          </div>
+        )}
+
         <StudentMultiSelect
           students={students}
           selectedIds={selectedStudents}
@@ -210,6 +258,22 @@ export function AssignmentForm({ exams, students }: Props) {
           )}
         </button>
       </div>
+
+      {/* Modal elegir grupo */}
+      <GroupPickerModal
+        open={groupModalOpen}
+        onClose={() => setGroupModalOpen(false)}
+        groups={groups}
+        onPickGroup={(studentIds, groupName) => {
+          // Fusionamos con lo ya seleccionado (sin duplicar)
+          setSelectedStudents((prev) => {
+            const merged = new Set(prev);
+            studentIds.forEach((id) => merged.add(id));
+            return Array.from(merged);
+          });
+          setLastPickedGroup(groupName);
+        }}
+      />
     </div>
   );
 }
