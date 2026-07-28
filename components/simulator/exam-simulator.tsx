@@ -34,6 +34,7 @@ interface AnswerState {
 
 interface Props {
   loaded: LoadedExamForAttempt;
+  isIndividual?: boolean;
 }
 
 const AUTOSAVE_INTERVAL_MS = 15_000;
@@ -87,7 +88,7 @@ const THEME_STYLES: Record<
   },
 };
 
-export function ExamSimulator({ loaded }: Props) {
+export function ExamSimulator({ loaded, isIndividual }: Props) {
   // ─── Preferencias visuales (persistidas en localStorage) ──────────
   const [fontSize, setFontSize] = useState<FontSize>("base");
   const [colorTheme, setColorTheme] = useState<ColorTheme>("paper");
@@ -694,6 +695,34 @@ export function ExamSimulator({ loaded }: Props) {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay fullscreen durante submit para alumnos individuales:
+          la corrección IA tarda 15-30s, mejor mostrar contexto que un botón. */}
+      {submitting && isIndividual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/80 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-8 text-center">
+            <div className="mb-6 flex justify-center">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-4 border-navy/20"></div>
+                <div className="absolute inset-0 h-16 w-16 rounded-full border-4 border-transparent border-t-navy animate-spin"></div>
+              </div>
+            </div>
+            <p className="text-xs uppercase tracking-wider text-saffron font-semibold mb-2">
+              Corrigiendo con IA
+            </p>
+            <h2 className="text-xl font-semibold text-ink mb-3">
+              Estamos revisando tu Writing
+            </h2>
+            <p className="text-sm text-muted mb-4 leading-relaxed">
+              Nuestra IA está analizando tu texto según las 4 rúbricas oficiales
+              de Cambridge. Esto suele tardar entre <strong>15 y 30 segundos</strong>.
+            </p>
+            <p className="text-xs text-muted italic">
+              No cierres esta ventana.
+            </p>
           </div>
         </div>
       )}

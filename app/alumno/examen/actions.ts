@@ -240,6 +240,33 @@ export async function submitAttemptAction(
     // El profesor podrá corregirlo manualmente.
   }
 
+  // ─── Fase 5B: autocorrección Writing IA para alumnos individuales ───
+  // Solo se dispara si es alumno individual (is_individual=true).
+  // Para alumnos de academia, el profesor corrige a mano (o fallback IA
+  // >7 días — pendiente Entrega 2).
+  try {
+    const { data: studentProfile } = await admin
+      .from("profiles")
+      .select("is_individual")
+      .eq("id", attempt.student_id)
+      .maybeSingle();
+
+    const isIndividual = Boolean(
+      (studentProfile as unknown as Record<string, unknown>)?.is_individual
+    );
+
+    if (isIndividual) {
+      const { triggerAICorrectionsForAttempt } = await import(
+        "@/lib/ai/trigger-corrections"
+      );
+      await triggerAICorrectionsForAttempt(attemptId);
+    }
+  } catch (e) {
+    console.error("AI correction trigger failed:", e);
+    // No bloqueamos el flujo — el alumno verá el estado "pendiente" y
+    // se puede reintentar manualmente después.
+  }
+
   revalidatePath(`/alumno/examen/${attemptId}`);
   revalidatePath("/alumno");
   redirect(`/alumno/examen/${attemptId}/enviado`);

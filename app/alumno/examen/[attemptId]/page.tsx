@@ -23,5 +23,9 @@ export default async function AlumnoSimuladorPage({
     redirect(`/alumno/examen/${params.attemptId}/enviado`);
   }
 
-  return <ExamSimulator loaded={loaded} />;
+  const isIndividual = Boolean(
+    (user.profile as unknown as Record<string, unknown>).is_individual
+  );
+
+  return <ExamSimulator loaded={loaded} isIndividual={isIndividual} />;
 }
