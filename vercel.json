@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ai-fallback",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

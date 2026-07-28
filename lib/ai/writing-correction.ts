@@ -47,12 +47,27 @@ export interface AICorrectionParams {
  * En caso de error:
  *   · Guarda la fila en ai_corrections con status='error' + error_message
  *   · Lanza la excepción (el caller decide qué mostrar al alumno)
+ *
+ * Rate limit: comprueba antes de llamar a Anthropic si el alumno ha
+ * superado su límite diario. Si sí, lanza excepción con mensaje claro.
  */
 export async function correctWritingWithAI(
   params: AICorrectionParams
 ): Promise<WritingAIResult> {
   const admin = createAdminClient();
   const { attemptId, questionId, studentId, input, triggeredBy = "auto_submit" } = params;
+
+  // Rate limit (solo se aplica a triggers manuales del alumno, no al
+  // auto_submit ni al fallback academia)
+  if (triggeredBy === "retry") {
+    const { checkAIRateLimit } = await import("./rate-limit");
+    const rl = await checkAIRateLimit(studentId);
+    if (!rl.allowed) {
+      throw new Error(
+        `Has alcanzado el límite diario de ${rl.limit} correcciones IA. Vuelve a intentarlo mañana.`
+      );
+    }
+  }
 
   // Registrar la llamada como pending
   const { data: aiRow, error: aiInsertErr } = await admin

@@ -1,5 +1,7 @@
 import { CheckCircle2, XCircle, MinusCircle, Bookmark, Clock } from "lucide-react";
 import type { ResultQuestion } from "@/lib/exam/result-loader";
+import { AICorrectionBadge } from "./ai-correction-badge";
+import { SuggestionsList } from "./suggestions-list";
 
 interface Props {
   question: ResultQuestion;
@@ -171,6 +173,7 @@ function FreeTextReview({ question }: { question: ResultQuestion }) {
 function WritingQuestionReview({ question }: { question: ResultQuestion }) {
   const wc = question.writing_correction;
   const isCorrected = Boolean(wc?.corrected_at);
+  const isAI = Boolean(wc?.corrected_by_ai);
 
   return (
     <article className="rounded-lg border-l-4 border border-rule border-l-saffron bg-white p-5">
@@ -213,9 +216,13 @@ function WritingQuestionReview({ question }: { question: ResultQuestion }) {
       {/* Corrección */}
       {isCorrected && wc ? (
         <div className="mt-6">
-          <p className="text-xs uppercase tracking-wider text-navy font-medium mb-3">
-            Corrección de tu profesor
-          </p>
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <p className="text-xs uppercase tracking-wider text-navy font-medium">
+              {isAI ? "Corrección de tu Writing" : "Corrección de tu profesor"}
+            </p>
+            {isAI && <AICorrectionBadge />}
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
             <RubricScore label="Content" score={wc.content_score} max={5} />
             <RubricScore label="Comm. Achievement" score={wc.communicative_score} max={5} />
@@ -235,12 +242,22 @@ function WritingQuestionReview({ question }: { question: ResultQuestion }) {
           {wc.teacher_notes && (
             <div className="mt-4 rounded border border-rule bg-white p-4">
               <p className="text-xs uppercase tracking-wider text-navy font-medium mb-2">
-                Notas del profesor
+                {isAI ? "Comentario" : "Notas del profesor"}
               </p>
               <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
                 {wc.teacher_notes}
               </p>
             </div>
+          )}
+
+          {wc.suggestions && wc.suggestions.length > 0 && (
+            <SuggestionsList
+              suggestions={wc.suggestions.map((s) => ({
+                type: s.type,
+                text: s.text,
+                example: s.example ?? null,
+              }))}
+            />
           )}
         </div>
       ) : (

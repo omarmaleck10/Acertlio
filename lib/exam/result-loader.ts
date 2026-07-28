@@ -45,6 +45,12 @@ export interface ResultQuestion {
     max_score: number | null;
     teacher_notes: string | null;
     corrected_at: string | null;
+    corrected_by_ai: boolean;
+    suggestions: Array<{
+      type: string;
+      text: string;
+      example?: string | null;
+    }> | null;
   } | null;
 }
 
@@ -255,6 +261,12 @@ export async function loadResultData(
       max_score: number | null;
       teacher_notes: string | null;
       corrected_at: string | null;
+      corrected_by_ai: boolean;
+      suggestions: Array<{
+        type: string;
+        text: string;
+        example?: string | null;
+      }> | null;
     }
   >();
 
@@ -262,12 +274,20 @@ export async function loadResultData(
     const { data: wcData } = await admin
       .from("writing_corrections")
       .select(
-        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, teacher_notes, corrected_at, status"
+        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, status, corrected_by_ai, suggestions"
       )
       .eq("attempt_id", attempt.id)
       .in("question_id", writingQuestionIds);
 
     (wcData ?? []).forEach((wc) => {
+      // Consideramos "corregido" si:
+      //   · Es humano y status='completed'
+      //   · O es IA (corrected_by_ai=true, la IA no usa status)
+      const isCorrectedByAI = Boolean(
+        (wc as unknown as Record<string, unknown>).corrected_by_ai
+      );
+      const isCompleted = isCorrectedByAI || wc.status === "completed";
+
       writingCorrectionByQuestion.set(wc.question_id, {
         content_score: wc.content_score,
         communicative_score: wc.communicative_score,
@@ -275,8 +295,13 @@ export async function loadResultData(
         language_score: wc.language_score,
         total_score: wc.total_score,
         max_score: wc.max_score,
-        teacher_notes: wc.teacher_notes,
-        corrected_at: wc.status === "completed" ? wc.corrected_at : null,
+        teacher_notes: wc.feedback, // renombrado para mantener API pública
+        corrected_at: isCompleted ? wc.corrected_at : null,
+        corrected_by_ai: isCorrectedByAI,
+        suggestions:
+          ((wc as unknown as Record<string, unknown>).suggestions as
+            | Array<{ type: string; text: string; example?: string | null }>
+            | null) ?? null,
       });
     });
   }
