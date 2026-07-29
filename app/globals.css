@@ -175,3 +175,14 @@
     size: A4;
   }
 }
+
+
+/* ─── Modo Simulador ─────────────────────────────────────────────
+   Cuando el alumno está haciendo un examen, ocultamos el sidebar
+   del layout de alumno para tener una pantalla limpia y sin
+   distracciones. El data attribute lo pone/quita el componente
+   ExamSimulator cuando se monta/desmonta.
+   ──────────────────────────────────────────────────────────────── */
+body[data-in-exam="true"] aside[data-app-sidebar] {
+  display: none !important;
+}

@@ -148,6 +148,17 @@ export function ExamSimulator({ loaded, isIndividual }: Props) {
     }
   }, []);
 
+  // ─── Modo examen: oculta el sidebar del layout de alumno ─────────
+  // Se activa al montar el simulador y se limpia al desmontar.
+  // El CSS global (body[data-in-exam] aside[data-app-sidebar]) hace
+  // el trabajo visual.
+  useEffect(() => {
+    document.body.dataset.inExam = "true";
+    return () => {
+      delete document.body.dataset.inExam;
+    };
+  }, []);
+
   // ─── Estado global de respuestas ─────────────────────────────────
   const [answers, setAnswers] = useState<Map<string, AnswerState>>(() => {
     const initial = new Map<string, AnswerState>();
@@ -411,6 +422,18 @@ export function ExamSimulator({ loaded, isIndividual }: Props) {
             ) : (
               <Maximize2 className="h-4 w-4" />
             )}
+          </button>
+
+          {/* Botón Enviar examen — SIEMPRE visible en el header.
+              No hace falta esperar a la última pregunta ni buscar el
+              botón del rail inferior. */}
+          <button
+            onClick={() => setShowSubmitConfirm(true)}
+            className="ml-1 px-3 py-2 rounded bg-saffron text-white text-sm font-medium hover:bg-saffron/90 inline-flex items-center gap-1.5"
+            title="Terminar el examen y enviar todas las respuestas"
+          >
+            <Send className="h-4 w-4" />
+            <span className="hidden sm:inline">Enviar examen</span>
           </button>
         </div>
       </header>

@@ -21,7 +21,7 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ role, userName, items }: DashboardSidebarProps) {
   const pathname = usePathname();
   return (
-    <aside className="w-60 shrink-0 border-r border-rule bg-white flex flex-col h-screen sticky top-0">
+    <aside data-app-sidebar className="w-60 shrink-0 border-r border-rule bg-white flex flex-col h-screen sticky top-0">
       <div className="px-5 h-16 flex items-center border-b border-rule">
         <Link href="/" aria-label="Inicio">
           <Logo className="text-xl" />
