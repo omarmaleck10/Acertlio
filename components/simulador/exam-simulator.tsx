@@ -22,6 +22,7 @@ import {
   pausePaperAction,
   expirePaperAction,
   saveNotesAction,
+  closePaperAction,
 } from "@/app/alumno/examenes/actions";
 
 const SYNC_INTERVAL_MS = 30_000;
@@ -65,6 +66,37 @@ export function ExamSimulator({ data }: Props) {
   const [notesContent, setNotesContent] = useState(data.notes_content);
   const [isOnline, setIsOnline] = useState(true);
   const [showOfflineToast, setShowOfflineToast] = useState(false);
+
+  // ─── Fullscreen ─────────────────────────────────────────────
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (e) {
+      console.error("Fullscreen error:", e);
+    }
+  }, []);
+
+  // ─── Modo examen: oculta el sidebar del layout de alumno ────
+  useEffect(() => {
+    document.body.dataset.inExam = "true";
+    return () => {
+      delete document.body.dataset.inExam;
+    };
+  }, []);
+
+  // ─── Confirmación de envío del paper ────────────────────────
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const secondsLeftRef = useRef(data.time_remaining_seconds);
 
@@ -133,6 +165,28 @@ export function ExamSimulator({ data }: Props) {
     });
     router.push(res.redirectTo ?? `/alumno/examenes/${data.exam_id}`);
   }, [data.paper_attempt_id, data.exam_id, router]);
+
+  // ─── Finalizar el paper voluntariamente ─────────────────────
+  const handleFinish = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await closePaperAction(
+        data.exam_id,
+        data.paper_code,
+        "completed"
+      );
+      if (res.error) {
+        console.error("Close paper error:", res.error);
+        setSubmitting(false);
+        return;
+      }
+      router.push(`/alumno/examenes/${data.exam_id}`);
+    } catch (e) {
+      console.error("Finish error:", e);
+      setSubmitting(false);
+    }
+  }, [data.exam_id, data.paper_code, router, submitting]);
 
 
   // ─── Autosave (option) ──────────────────────────────────────
@@ -434,6 +488,9 @@ export function ExamSimulator({ data }: Props) {
           }}
           onTick={handleTick}
           onExpire={handleExpire}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          onFinish={() => setShowSubmitConfirm(true)}
         />
 
         {/* Cinta de instrucciones */}
@@ -531,6 +588,38 @@ export function ExamSimulator({ data }: Props) {
             <p className="text-xs opacity-90 mt-0.5">
               Tus respuestas se guardarán cuando vuelva la conexión.
             </p>
+          </div>
+        )}
+
+        {/* Modal de confirmación de envío ────────────────────────── */}
+        {showSubmitConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+              <h2 className="text-lg font-semibold text-ink mb-2">
+                ¿Terminar este paper?
+              </h2>
+              <p className="text-sm text-muted mb-5 leading-relaxed">
+                Vas a enviar tus respuestas de <strong>{data.paper_title}</strong>.
+                Después no podrás cambiarlas. Si el examen tiene otro paper
+                (por ejemplo Writing), se abrirá a continuación.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowSubmitConfirm(false)}
+                  disabled={submitting}
+                  className="px-4 py-2 rounded border border-rule text-sm text-ink hover:bg-paper disabled:opacity-50"
+                >
+                  Seguir revisando
+                </button>
+                <button
+                  onClick={handleFinish}
+                  disabled={submitting}
+                  className="px-4 py-2 rounded bg-saffron text-white text-sm font-medium hover:bg-saffron/90 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {submitting ? "Enviando…" : "Sí, enviar"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Wifi, WifiOff, StickyNote, HelpCircle } from "lucide-react";
+import { Wifi, WifiOff, StickyNote, HelpCircle, Maximize2, Minimize2, Send } from "lucide-react";
 import { ExamTimer } from "./exam-timer";
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   onOpenHelp: () => void;
   onTick: (secondsLeft: number) => void;
   onExpire: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  onFinish?: () => void;
 }
 
 export function ExamHeader({
@@ -29,6 +32,9 @@ export function ExamHeader({
   onOpenHelp,
   onTick,
   onExpire,
+  isFullscreen,
+  onToggleFullscreen,
+  onFinish,
 }: Props) {
   return (
     <header className="fixed top-0 inset-x-0 z-40 bg-white border-b border-rule shadow-sm">
@@ -64,7 +70,7 @@ export function ExamHeader({
           </div>
         </div>
 
-        {/* Derecha: timer + iconos */}
+        {/* Derecha: timer + iconos + fullscreen + enviar */}
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
           <ExamTimer
             timeRemainingSeconds={timeRemainingSeconds}
@@ -105,6 +111,34 @@ export function ExamHeader({
           >
             <HelpCircle className="h-4 w-4" />
           </button>
+
+          {/* Botón pantalla completa */}
+          {onToggleFullscreen && (
+            <button
+              onClick={onToggleFullscreen}
+              className="flex items-center justify-center h-8 w-8 rounded hover:bg-paper transition-colors text-muted hover:text-ink"
+              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+              aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </button>
+          )}
+
+          {/* Botón "Enviar respuestas" — siempre visible en el header */}
+          {onFinish && (
+            <button
+              onClick={onFinish}
+              className="ml-1 h-8 px-3 rounded bg-saffron text-white text-xs font-medium hover:bg-saffron/90 inline-flex items-center gap-1.5"
+              title="Enviar mis respuestas y terminar este paper"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Enviar respuestas</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
