@@ -50,7 +50,11 @@ export async function triggerAICorrectionsForAttempt(
   if (!questions) return { corrected: 0, skipped: 0, errors: 0 };
 
   // Filtrar solo las preguntas de tipo Writing (open_response, essay, letter, etc.)
+  // IMPORTANTE: los mocks A2-C2 cargados en 015-030 usan question_type
+  // = 'writing_task'. Los antiguos podían usar tipos como 'essay',
+  // 'letter', etc. Aceptamos ambos para máxima cobertura.
   const WRITING_TYPES = [
+    "writing_task",
     "essay",
     "letter",
     "email",

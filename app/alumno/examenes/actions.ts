@@ -255,6 +255,35 @@ export async function closePaperAction(
 
   if (!paper) return { error: "Paper no encontrado." };
 
+  // ─── FIX CRÍTICO: autocorregir ANTES de cerrar ───────────────────
+  // Antes, autogradePaperAttempt solo se ejecutaba en expirePaperAction
+  // (cuando expiraba el tiempo). Cuando el alumno pulsaba "Enviar
+  // respuestas" voluntariamente, la nota se quedaba a 0 aunque
+  // tuviera respuestas correctas.
+  //
+  // Localizamos primero el paper_attempt.id para poder llamar al
+  // autograde. Idempotente: si ya está corregido, sobreescribe con
+  // los mismos valores.
+  const { data: paperAttempt } = await admin
+    .from("paper_attempts")
+    .select("id")
+    .eq("attempt_id", attempt.id)
+    .eq("paper_id", paper.id)
+    .maybeSingle();
+
+  if (paperAttempt) {
+    try {
+      const { autogradePaperAttempt } = await import(
+        "@/lib/exam/autograde"
+      );
+      await autogradePaperAttempt(paperAttempt.id);
+    } catch (e) {
+      console.error("[autograde] Failed at close time:", e);
+      // No bloqueamos: preferimos cerrar el paper aunque falle el
+      // autograde. Podremos recalcular después con recalculate.
+    }
+  }
+
   // Actualizar paper_attempt
   const now = new Date().toISOString();
   const { error } = await admin

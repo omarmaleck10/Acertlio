@@ -55,12 +55,30 @@ export default async function NuevaAsignacionPage({
       .eq("role", "student");
     studentIds = (allStudents ?? []).map((s) => s.id);
   } else {
-    // El profesor solo ve sus alumnos (relación teacher_students)
-    const { data: myStudents } = await admin
-      .from("teacher_students")
-      .select("student_id")
-      .eq("teacher_id", user.id);
-    studentIds = (myStudents ?? []).map((r) => r.student_id);
+    // El profesor ve dos fuentes de alumnos:
+    //   1. Relación directa teacher_students
+    //   2. Alumnos que están en grupos donde él es el teacher_id
+    // Antes solo miraba la 1, y como al crear grupos no se poblaba
+    // teacher_students, el profesor veía "No tienes alumnos asignados"
+    // aunque tuviera grupos llenos.
+    const [directRes, groupRes] = await Promise.all([
+      admin
+        .from("teacher_students")
+        .select("student_id")
+        .eq("teacher_id", user.id),
+      admin
+        .from("student_group_members")
+        .select("student_id, student_groups!inner(teacher_id)")
+        .eq("student_groups.teacher_id", user.id),
+    ]);
+
+    const directIds = (directRes.data ?? []).map((r) => r.student_id);
+    const groupIds = (groupRes.data ?? []).map(
+      (r) => (r as unknown as { student_id: string }).student_id
+    );
+
+    // Dedup
+    studentIds = Array.from(new Set([...directIds, ...groupIds]));
   }
 
   let students: StudentOption[] = [];
