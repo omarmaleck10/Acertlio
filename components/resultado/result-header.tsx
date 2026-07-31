@@ -1,6 +1,7 @@
 import { CheckCircle2, Clock, AlertCircle, CalendarDays } from "lucide-react";
 import type { ResultData } from "@/lib/exam/result-loader";
 import { DownloadPdfButton } from "./download-pdf-button";
+import { RetryAIButton } from "./retry-ai-button";
 
 interface Props {
   data: ResultData;
@@ -184,6 +185,13 @@ function WritingResultCard({ data }: { data: ResultData }) {
               )}{" "}
               tareas pendientes.
             </p>
+
+            {/* Botón solo para alumnos individuales:
+                permite re-disparar la IA si la automática falló */}
+            <RetryAIButton
+              examId={data.exam_id}
+              isIndividual={data.is_individual}
+            />
           </div>
         </div>
       </div>

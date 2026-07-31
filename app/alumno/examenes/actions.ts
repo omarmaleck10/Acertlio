@@ -271,6 +271,136 @@ export async function closePaperAction(
 
   if (error) return { error: error.message };
 
+  // ─── FIX (Fase 5B v2): disparar IA al cerrar un paper con Writing ─
+  // Antes esperábamos a que TODOS los papers estuvieran cerrados
+  // (bloque allDone más abajo). Eso fallaba si el alumno abandonaba
+  // un paper (por ejemplo Reading in_progress + Writing completed
+  // → allDone=false → IA nunca dispara → Writing queda pendiente).
+  //
+  // Ahora disparamos también al cerrar cualquier paper que contenga
+  // preguntas de tipo Writing. triggerAICorrectionsForAttempt es
+  // idempotente: si el Writing ya está corregido, lo salta.
+  //
+  // Solo dispara para alumnos individuales (is_individual=true).
+  // Los de academia siguen la ruta: profesor corrige → fallback IA
+  // >7 días vía cron.
+  if (reason === "completed") {
+    try {
+      // 1. ¿Este paper tiene preguntas de Writing?
+      const { data: writingParts } = await admin
+        .from("exam_parts")
+        .select("id")
+        .eq("paper_id", paper.id)
+        .eq("skill", "writing")
+        .limit(1);
+
+      const hasWriting = (writingParts?.length ?? 0) > 0;
+
+      if (hasWriting) {
+        // 2. ¿Alumno individual?
+        const { data: studentProfile } = await admin
+          .from("profiles")
+          .select("is_individual")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const isIndividual = Boolean(
+          (studentProfile as unknown as Record<string, unknown>)?.is_individual
+        );
+
+        console.log(
+          `[AI trigger] paperCode=${paperCode} hasWriting=${hasWriting} isIndividual=${isIndividual} attemptId=${attempt.id}`
+        );
+
+        if (isIndividual) {
+          const { triggerAICorrectionsForAttempt } = await import(
+            "@/lib/ai/trigger-corrections"
+          );
+          // Await en lugar de fire-and-forget: queremos que el usuario
+          // vea la corrección lo antes posible al llegar a la pantalla
+          // "enviado". Si tarda, aceptamos el pequeño retraso porque
+          // el resultado es visible inmediatamente sin refrescar.
+          const res = await triggerAICorrectionsForAttempt(attempt.id);
+          console.log(`[AI trigger] result:`, res);
+        }
+      }
+    } catch (e) {
+      console.error("[AI trigger] Failed to trigger AI corrections:", e);
+      // No bloqueamos el flujo — el alumno puede reintentarlo desde
+      // la pantalla de resultados si el Writing sigue pendiente.
+    }
+  }
+
+  // ─── Comprobar si el attempt entero está completo ────────────────
+  // Un attempt se considera completo cuando todos los papers
+  // disponibles (is_available=true) están cerrados con status
+  // "completed" o "time_expired". Los papers no disponibles
+  // (por ejemplo Listening con "Próximamente") no cuentan.
+  try {
+    const { data: availablePapers } = await admin
+      .from("exam_papers")
+      .select("id")
+      .eq("exam_id", examId)
+      .eq("is_available", true);
+
+    const { data: closedPaperAttempts } = await admin
+      .from("paper_attempts")
+      .select("paper_id, status")
+      .eq("attempt_id", attempt.id)
+      .in("status", ["completed", "time_expired"]);
+
+    const allAvailablePaperIds = (availablePapers ?? []).map((p) => p.id);
+    const closedPaperIds = new Set(
+      (closedPaperAttempts ?? []).map((pa) => pa.paper_id)
+    );
+
+    const allDone =
+      allAvailablePaperIds.length > 0 &&
+      allAvailablePaperIds.every((id) => closedPaperIds.has(id));
+
+    if (allDone) {
+      // Marcar attempt como completed (idempotente)
+      await admin
+        .from("attempts")
+        .update({
+          status: "completed",
+          completed_at: now,
+          updated_at: now,
+        })
+        .eq("id", attempt.id)
+        .eq("status", "in_progress");
+
+      // ─── Disparar corrección IA para alumnos individuales ────────
+      // Solo alumnos con is_individual=true reciben corrección
+      // automática. Los alumnos de academia los corrige el profesor
+      // (con fallback IA >7 días vía cron, gestionado aparte).
+      const { data: studentProfile } = await admin
+        .from("profiles")
+        .select("is_individual")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const isIndividual = Boolean(
+        (studentProfile as unknown as Record<string, unknown>)?.is_individual
+      );
+
+      if (isIndividual) {
+        const { triggerAICorrectionsForAttempt } = await import(
+          "@/lib/ai/trigger-corrections"
+        );
+        // Dispara en background — no bloquea la respuesta al usuario.
+        // Si falla, el Writing queda en estado "pendiente" y se puede
+        // reintentar manualmente después.
+        triggerAICorrectionsForAttempt(attempt.id).catch((e) => {
+          console.error("AI correction trigger failed:", e);
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Attempt completion check failed:", e);
+    // No bloqueamos el flujo — el paper ya está cerrado correctamente.
+  }
+
   revalidatePath(`/alumno/examenes/${examId}`);
   return {};
 }
@@ -526,4 +656,70 @@ export async function saveNotesAction(input: {
 
   if (error) return { error: error.message };
   return { ok: true };
+}
+
+
+/**
+ * Re-dispara la corrección IA para el Writing del último attempt
+ * completado de un mock. Útil cuando la corrección automática al
+ * cerrar el paper falló (rate limit, API caída, error transitorio)
+ * y el Writing sigue en estado "pendiente".
+ *
+ * Solo alumnos individuales (is_individual=true). Idempotente:
+ * si el Writing ya está corregido, no hace nada.
+ */
+export async function retryAICorrectionAction(
+  examId: string
+): Promise<{ error?: string; ok?: boolean; corrected?: number }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "No hay sesión de usuario." };
+
+  const admin = createAdminClient();
+
+  // Verificar que el alumno es individual
+  const { data: studentProfile } = await admin
+    .from("profiles")
+    .select("is_individual")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isIndividual = Boolean(
+    (studentProfile as unknown as Record<string, unknown>)?.is_individual
+  );
+
+  if (!isIndividual) {
+    return {
+      error:
+        "Este mock corresponde a una academia. La corrección la hará tu profesor.",
+    };
+  }
+
+  // Buscar el último attempt del alumno para este mock
+  const { data: attempt } = await admin
+    .from("attempts")
+    .select("id")
+    .eq("exam_id", examId)
+    .eq("student_id", user.id)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!attempt) return { error: "No hay intento previo para este mock." };
+
+  try {
+    const { triggerAICorrectionsForAttempt } = await import(
+      "@/lib/ai/trigger-corrections"
+    );
+    const res = await triggerAICorrectionsForAttempt(attempt.id);
+    console.log(`[AI retry] attempt=${attempt.id} result:`, res);
+
+    revalidatePath(`/alumno/examenes/${examId}`);
+    return { ok: true, corrected: res.corrected };
+  } catch (e) {
+    console.error("[AI retry] Failed:", e);
+    return {
+      error:
+        "No se pudo lanzar la corrección. Vuelve a intentarlo en unos minutos.",
+    };
+  }
 }

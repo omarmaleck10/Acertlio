@@ -96,6 +96,10 @@ export interface ResultData {
   parts: ResultPart[];
   notes_content: string;
   bookmarked_question_ids: string[];
+
+  // Perfil del alumno: si es individual, tiene autocorrección IA.
+  // Si es de academia, corrige el profesor.
+  is_individual: boolean;
 }
 
 
@@ -119,6 +123,13 @@ export async function loadResultData(
   studentId: string
 ): Promise<ResultData | null> {
   const admin = createAdminClient();
+
+  // 0. Perfil del alumno (para saber si es individual → autocorrección IA)
+  const { data: studentProfile } = await admin
+    .from("profiles")
+    .select("is_individual")
+    .eq("id", studentId)
+    .maybeSingle();
 
   // 1. Examen
   const { data: exam } = await admin
@@ -497,5 +508,9 @@ export async function loadResultData(
     parts: resultParts,
     notes_content: notesData?.content ?? "",
     bookmarked_question_ids: Array.from(bookmarkSet),
+    is_individual: Boolean(
+      (studentProfile as unknown as Record<string, unknown> | null)
+        ?.is_individual
+    ),
   };
 }
