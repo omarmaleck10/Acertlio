@@ -91,7 +91,7 @@ export async function loadTeacherStats(params: {
   // ─── 2. Cargar perfiles ─────────────────────────────────────
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, full_name, email, current_level, level")
+    .select("id, full_name, email, current_level")
     .in("id", studentIds);
 
   const profileById = new Map<
@@ -99,9 +99,7 @@ export async function loadTeacherStats(params: {
     { name: string; email: string; level: string | null }
   >();
   (profiles ?? []).forEach((p) => {
-    const lvl =
-      (p as unknown as Record<string, unknown>).current_level ??
-      (p as unknown as Record<string, unknown>).level;
+    const lvl = (p as unknown as Record<string, unknown>).current_level;
     profileById.set(p.id, {
       name: p.full_name ?? "—",
       email: p.email ?? "",
