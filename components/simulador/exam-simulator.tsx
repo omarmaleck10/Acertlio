@@ -171,6 +171,53 @@ export function ExamSimulator({ data }: Props) {
     if (submitting) return;
     setSubmitting(true);
     try {
+      // ─── FIX RACE CONDITION ────────────────────────────────
+      // Los textos de Writing se guardan con debounce de 700ms.
+      // Si el alumno pulsa "Enviar respuestas" antes de que pase
+      // ese tiempo, la última versión del texto NO se ha guardado
+      // en BBDD y la IA lo trata como respuesta vacía.
+      //
+      // Fix: cancelamos todos los timeouts pendientes y forzamos
+      // el guardado sincrónico de todos los textos del estado
+      // ANTES de llamar a closePaperAction.
+      saveTimeoutRef.current.forEach((to) => clearTimeout(to));
+      saveTimeoutRef.current.clear();
+
+      const flushPromises: Promise<unknown>[] = [];
+      answerTexts.forEach((text, questionId) => {
+        if (text != null) {
+          flushPromises.push(
+            saveAnswerAction({
+              paperAttemptId: data.paper_attempt_id,
+              questionId,
+              answerText: text,
+            }).catch((e) => {
+              console.error("Flush text failed:", e);
+            })
+          );
+        }
+      });
+      selectedOptions.forEach((selectedOptionId, questionId) => {
+        if (selectedOptionId != null) {
+          flushPromises.push(
+            saveAnswerAction({
+              paperAttemptId: data.paper_attempt_id,
+              questionId,
+              selectedOptionId,
+            }).catch((e) => {
+              console.error("Flush option failed:", e);
+            })
+          );
+        }
+      });
+      // Esperar a que TODAS las respuestas estén en BBDD antes
+      // de cerrar el paper. Puede tardar 1-2 segundos si hay
+      // muchas respuestas — es aceptable a cambio de garantizar
+      // que la IA vea el texto real.
+      if (flushPromises.length > 0) {
+        await Promise.all(flushPromises);
+      }
+
       const res = await closePaperAction(
         data.exam_id,
         data.paper_code,
@@ -186,7 +233,15 @@ export function ExamSimulator({ data }: Props) {
       console.error("Finish error:", e);
       setSubmitting(false);
     }
-  }, [data.exam_id, data.paper_code, router, submitting]);
+  }, [
+    data.exam_id,
+    data.paper_code,
+    data.paper_attempt_id,
+    answerTexts,
+    selectedOptions,
+    router,
+    submitting,
+  ]);
 
 
   // ─── Autosave (option) ──────────────────────────────────────

@@ -58,27 +58,42 @@ export default async function NuevaAsignacionPage({
     // El profesor ve dos fuentes de alumnos:
     //   1. Relación directa teacher_students
     //   2. Alumnos que están en grupos donde él es el teacher_id
-    // Antes solo miraba la 1, y como al crear grupos no se poblaba
-    // teacher_students, el profesor veía "No tienes alumnos asignados"
-    // aunque tuviera grupos llenos.
-    const [directRes, groupRes] = await Promise.all([
+    //
+    // Query en 2 pasos (no depende de foreign keys implícitas):
+    //   a. Grupos del profesor
+    //   b. Miembros de esos grupos
+    const [directRes, myGroups] = await Promise.all([
       admin
         .from("teacher_students")
         .select("student_id")
         .eq("teacher_id", user.id),
       admin
-        .from("student_group_members")
-        .select("student_id, student_groups!inner(teacher_id)")
-        .eq("student_groups.teacher_id", user.id),
+        .from("student_groups")
+        .select("id")
+        .eq("teacher_id", user.id),
     ]);
 
     const directIds = (directRes.data ?? []).map((r) => r.student_id);
-    const groupIds = (groupRes.data ?? []).map(
-      (r) => (r as unknown as { student_id: string }).student_id
+    const groupIds = (myGroups.data ?? []).map((g) => g.id);
+
+    let studentsFromGroups: string[] = [];
+    if (groupIds.length > 0) {
+      const { data: members } = await admin
+        .from("student_group_members")
+        .select("student_id")
+        .in("group_id", groupIds);
+      studentsFromGroups = (members ?? []).map((m) => m.student_id);
+    }
+
+    // Log para debug (visible en Vercel logs)
+    console.log(
+      `[Asignaciones profesor] user=${user.id} directIds=${directIds.length} groups=${groupIds.length} groupStudents=${studentsFromGroups.length}`
     );
 
     // Dedup
-    studentIds = Array.from(new Set([...directIds, ...groupIds]));
+    studentIds = Array.from(
+      new Set([...directIds, ...studentsFromGroups])
+    );
   }
 
   let students: StudentOption[] = [];
