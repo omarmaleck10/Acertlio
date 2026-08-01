@@ -67,10 +67,19 @@ export async function createAssignmentsAction(input: {
   }
 
   // Verificar que los alumnos son de la academia
-  const { data: students } = await admin
+  const { data: students, error: studentsErr } = await admin
     .from("profiles")
-    .select("id, full_name, email, academy_id, role, cambridge_level")
+    .select("id, full_name, email, academy_id, role, current_level")
     .in("id", input.studentIds);
+
+  if (studentsErr) {
+    console.error("[Asignar simulacro] Error cargando profiles:", studentsErr);
+    return { error: "No se pudieron cargar los alumnos seleccionados." };
+  }
+
+  console.log(
+    `[Asignar simulacro] Alumnos solicitados: ${input.studentIds.length} · encontrados: ${students?.length ?? 0}`
+  );
 
   const validStudents = (students ?? []).filter(
     (s) => s.academy_id === profile.academy_id && s.role === "student"
@@ -81,14 +90,40 @@ export async function createAssignmentsAction(input: {
   }
 
   // Si es teacher (no admin), filtrar solo los que enseña
+  // Fuentes: (1) teacher_students directo (2) miembros de sus grupos
   let allowedIds = validStudents.map((s) => s.id);
   if (isTeacher) {
-    const { data: ts } = await admin
-      .from("teacher_students")
-      .select("student_id")
-      .eq("teacher_id", user.id)
-      .in("student_id", allowedIds);
-    allowedIds = (ts ?? []).map((r) => r.student_id);
+    const [tsRes, myGroups] = await Promise.all([
+      admin
+        .from("teacher_students")
+        .select("student_id")
+        .eq("teacher_id", user.id)
+        .in("student_id", allowedIds),
+      admin
+        .from("student_groups")
+        .select("id")
+        .eq("teacher_id", user.id),
+    ]);
+
+    const directIds = (tsRes.data ?? []).map((r) => r.student_id);
+
+    let groupStudentIds: string[] = [];
+    const groupIds = (myGroups.data ?? []).map((g) => g.id);
+    if (groupIds.length > 0) {
+      const { data: members } = await admin
+        .from("student_group_members")
+        .select("student_id")
+        .in("group_id", groupIds)
+        .in("student_id", allowedIds);
+      groupStudentIds = (members ?? []).map((m) => m.student_id);
+    }
+
+    allowedIds = Array.from(new Set([...directIds, ...groupStudentIds]));
+
+    console.log(
+      `[Asignar simulacro] teacher=${user.id} · direct=${directIds.length} · fromGroups=${groupStudentIds.length} · finalAllowed=${allowedIds.length}`
+    );
+
     if (allowedIds.length === 0) {
       return { error: "Solo puedes asignar a alumnos que enseñas." };
     }
