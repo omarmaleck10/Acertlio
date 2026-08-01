@@ -113,18 +113,30 @@ export default async function NuevaAsignacionPage({
 
   let students: StudentOption[] = [];
   if (studentIds.length > 0) {
-    const { data: studentsData } = await admin
+    const { data: studentsData, error: studentsErr } = await admin
       .from("profiles")
-      .select("id, full_name, email, level")
+      .select("id, full_name, email, current_level")
       .in("id", studentIds)
+      .eq("role", "student")
       .order("full_name", { ascending: true });
+
+    if (studentsErr) {
+      console.error("[Asignaciones profesor] Error cargando profiles:", studentsErr);
+    }
 
     students = (studentsData ?? []).map((s) => ({
       id: s.id,
       full_name: s.full_name ?? "—",
       email: s.email ?? "",
-      level: (s as unknown as Record<string, unknown>).level as string | null,
+      level:
+        ((s as unknown as Record<string, unknown>).current_level as
+          | string
+          | null) ?? null,
     }));
+
+    console.log(
+      `[Asignaciones profesor] Profiles cargados: ${students.length} de ${studentIds.length} IDs solicitados`
+    );
   }
 
   // Cargar grupos del profesor (o todos si es admin) + sus miembros
