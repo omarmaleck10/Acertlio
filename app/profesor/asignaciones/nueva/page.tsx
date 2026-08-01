@@ -6,6 +6,11 @@ import { AssignmentForm } from "@/components/profesor/assignment-form";
 import type { ExamOption } from "@/components/profesor/assignment-form";
 import type { StudentOption } from "@/components/profesor/student-multi-select";
 
+// Forzar SSR sin cache — evita que Next.js cachee esta página
+// aunque los datos hayan cambiado (grupos nuevos, alumnos añadidos).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function NuevaAsignacionPage({
   searchParams,
 }: {
@@ -26,6 +31,11 @@ export default async function NuevaAsignacionPage({
   }
 
   const admin = createAdminClient();
+
+  // Contadores de diagnóstico (visibles en la UI si no hay alumnos)
+  let debugDirectCount = 0;
+  let debugGroupsCount = 0;
+  let debugGroupStudentsCount = 0;
 
   // 1. Cargar exámenes publicados
   const { data: examsData } = await admin
@@ -84,6 +94,11 @@ export default async function NuevaAsignacionPage({
         .in("group_id", groupIds);
       studentsFromGroups = (members ?? []).map((m) => m.student_id);
     }
+
+    // Guardar contadores para diagnóstico visible en UI
+    debugDirectCount = directIds.length;
+    debugGroupsCount = groupIds.length;
+    debugGroupStudentsCount = studentsFromGroups.length;
 
     // Log para debug (visible en Vercel logs)
     console.log(
@@ -196,6 +211,31 @@ export default async function NuevaAsignacionPage({
               ? "Invita alumnos desde la sección de gestión de alumnos."
               : "Habla con el admin de tu academia para que te asigne alumnos."}
           </p>
+
+          {!isAdmin && (
+            <details className="mt-4 text-xs text-muted">
+              <summary className="cursor-pointer font-medium">
+                Diagnóstico técnico
+              </summary>
+              <div className="mt-2 space-y-1 font-mono">
+                <p>Tu ID de profesor: <code>{user.id}</code></p>
+                <p>Alumnos vinculados directamente (teacher_students): <strong>{debugDirectCount}</strong></p>
+                <p>Grupos donde eres profesor: <strong>{debugGroupsCount}</strong></p>
+                <p>Alumnos en esos grupos: <strong>{debugGroupStudentsCount}</strong></p>
+                <p className="mt-2 text-ink">
+                  {debugGroupsCount === 0 && debugDirectCount === 0 && (
+                    <>❌ No tienes grupos ni alumnos directos. Pide al admin que te asigne o crea un grupo.</>
+                  )}
+                  {debugGroupsCount > 0 && debugGroupStudentsCount === 0 && (
+                    <>⚠️ Tienes grupos pero están vacíos. Añade alumnos a tus grupos desde la sección Grupos.</>
+                  )}
+                  {(debugGroupsCount > 0 || debugDirectCount > 0) && debugGroupStudentsCount + debugDirectCount > 0 && (
+                    <>⚠️ Los datos existen pero no llegaron a esta pantalla. Refresca (Ctrl+Shift+R) o mándame captura de este diagnóstico.</>
+                  )}
+                </p>
+              </div>
+            </details>
+          )}
         </div>
       ) : (
         <AssignmentForm
