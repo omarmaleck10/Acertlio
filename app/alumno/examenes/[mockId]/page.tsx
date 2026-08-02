@@ -5,6 +5,7 @@ import { getMockDataForStudent } from "@/lib/papers/status";
 import { PaperCardsList } from "@/components/alumno/paper-cards-list";
 import { MockProgressBar } from "@/components/alumno/mock-progress-bar";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DebugErrorBoundary } from "@/components/debug-error-boundary";
 
 interface Params {
   params: { mockId: string };
@@ -113,7 +114,9 @@ export default async function MockPapersPage({ params }: Params) {
       </div>
 
       {/* Tarjetas de papers */}
-      <PaperCardsList examId={data.exam_id} papers={data.papers} />
+      <DebugErrorBoundary label="lista de papers">
+        <PaperCardsList examId={data.exam_id} papers={data.papers} />
+      </DebugErrorBoundary>
 
       {/* Nota inferior */}
       <p className="text-xs text-muted mt-8 leading-relaxed">

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PaperCard } from "./paper-card";
 import { PaperInstructionsModal } from "./paper-instructions-modal";
+import { DebugErrorBoundary } from "@/components/debug-error-boundary";
 import { startOrResumePaperAction } from "@/app/alumno/examenes/actions";
 import type { PaperWithStatus } from "@/lib/papers/status";
 
@@ -64,11 +65,13 @@ export function PaperCardsList({ examId, papers }: Props) {
         ))}
       </div>
 
-      <PaperInstructionsModal
-        paper={modalPaper}
-        onClose={() => setModalPaper(null)}
-        onStart={handleStart}
-      />
+      <DebugErrorBoundary label="modal instrucciones">
+        <PaperInstructionsModal
+          paper={modalPaper}
+          onClose={() => setModalPaper(null)}
+          onStart={handleStart}
+        />
+      </DebugErrorBoundary>
 
       {pending && (
         <div className="fixed inset-0 z-40 bg-ink/40 flex items-center justify-center pointer-events-none">

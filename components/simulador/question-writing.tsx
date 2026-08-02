@@ -245,16 +245,31 @@ export function QuestionWriting({
             Areas to discuss
           </p>
           <ul className="space-y-2">
-            {essayNotes.map((n, i) => (
-              <li key={i} className="text-sm text-ink flex items-start gap-3">
-                {n.label && n.label !== "Notes" && (
-                  <span className="flex-shrink-0 flex items-center justify-center h-6 w-6 rounded-full bg-navy/10 text-navy text-xs font-semibold">
-                    {n.label}
-                  </span>
-                )}
-                <span className="leading-relaxed">{n.text}</span>
-              </li>
-            ))}
+            {essayNotes.map((n, i) => {
+              const label =
+                typeof n === "object" && n !== null && "label" in n
+                  ? String((n as { label: unknown }).label ?? "")
+                  : "";
+              const text =
+                typeof n === "string"
+                  ? n
+                  : typeof n === "object" && n !== null && "text" in n
+                  ? String((n as { text: unknown }).text ?? "")
+                  : String(n ?? "");
+              return (
+                <li
+                  key={i}
+                  className="text-sm text-ink flex items-start gap-3"
+                >
+                  {label && label !== "Notes" && (
+                    <span className="flex-shrink-0 flex items-center justify-center h-6 w-6 rounded-full bg-navy/10 text-navy text-xs font-semibold">
+                      {label}
+                    </span>
+                  )}
+                  <span className="leading-relaxed">{text}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -266,14 +281,23 @@ export function QuestionWriting({
             Opinions expressed in the lecture
           </p>
           <ul className="space-y-2">
-            {opinions.map((o, i) => (
-              <li
-                key={i}
-                className="text-sm text-ink italic leading-relaxed"
-              >
-                {o.text}
-              </li>
-            ))}
+            {opinions.map((o, i) => {
+              const text =
+                typeof o === "string"
+                  ? o
+                  : typeof o === "object" && o !== null && "text" in o
+                  ? String((o as { text: unknown }).text ?? "")
+                  : String(o ?? "");
+              if (!text) return null;
+              return (
+                <li
+                  key={i}
+                  className="text-sm text-ink italic leading-relaxed"
+                >
+                  {text}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -281,16 +305,30 @@ export function QuestionWriting({
       {/* Textos fuente (C2 Part 1) */}
       {sourceTexts.length > 0 && (
         <div className="space-y-4">
-          {sourceTexts.map((t, i) => (
-            <div key={i} className="rounded border border-rule bg-white p-5">
-              <p className="text-xs uppercase tracking-wider text-navy font-medium mb-2">
-                {t.title}
-              </p>
-              <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
-                {t.text}
-              </p>
-            </div>
-          ))}
+          {sourceTexts.map((t, i) => {
+            const title =
+              typeof t === "object" && t !== null && "title" in t
+                ? String((t as { title: unknown }).title ?? "")
+                : "";
+            const text =
+              typeof t === "string"
+                ? t
+                : typeof t === "object" && t !== null && "text" in t
+                ? String((t as { text: unknown }).text ?? "")
+                : "";
+            return (
+              <div key={i} className="rounded border border-rule bg-white p-5">
+                {title && (
+                  <p className="text-xs uppercase tracking-wider text-navy font-medium mb-2">
+                    {title}
+                  </p>
+                )}
+                <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
+                  {text}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -307,7 +345,13 @@ export function QuestionWriting({
                 className="text-sm text-ink flex items-start gap-2"
               >
                 <span className="text-saffron flex-shrink-0">•</span>
-                <span>{n}</span>
+                <span>
+                  {typeof n === "string"
+                    ? n
+                    : typeof n === "object" && n !== null && "text" in n
+                    ? String((n as { text: unknown }).text ?? "")
+                    : String(n ?? "")}
+                </span>
               </li>
             ))}
           </ul>
@@ -356,15 +400,23 @@ export function QuestionWriting({
                     )}
                     {opt.points && opt.points.length > 0 && (
                       <ul className="mt-2 space-y-1">
-                        {opt.points.map((p, i) => (
-                          <li
-                            key={i}
-                            className="text-xs text-muted flex items-start gap-1.5"
-                          >
-                            <span className="flex-shrink-0">•</span>
-                            <span>{p}</span>
-                          </li>
-                        ))}
+                        {opt.points.map((p, i) => {
+                          const text =
+                            typeof p === "string"
+                              ? p
+                              : typeof p === "object" && p !== null && "text" in p
+                              ? String((p as { text: unknown }).text ?? "")
+                              : String(p ?? "");
+                          return (
+                            <li
+                              key={i}
+                              className="text-xs text-muted flex items-start gap-1.5"
+                            >
+                              <span className="flex-shrink-0">•</span>
+                              <span>{text}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

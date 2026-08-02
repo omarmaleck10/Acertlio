@@ -1,11 +1,16 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/user";
 import { loadSimulatorData } from "@/lib/exam/loader";
 import { ExamSimulator } from "@/components/simulador/exam-simulator";
+import { DebugErrorBoundary } from "@/components/debug-error-boundary";
 
 interface Params {
   params: { mockId: string; paperCode: string };
 }
+
+// SSR sin cache
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /**
  * Página del simulador de examen.
@@ -26,11 +31,13 @@ export default async function ExamenPaperPage({ params }: Params) {
     user.id
   );
 
-  // Si no hay datos válidos (paper no existe, no está disponible, o no hay
-  // intento en curso), redirigir a la pantalla de tarjetas
   if (!data) {
     redirect(`/alumno/examenes/${params.mockId}`);
   }
 
-  return <ExamSimulator data={data} />;
+  return (
+    <DebugErrorBoundary label="simulador">
+      <ExamSimulator data={data} />
+    </DebugErrorBoundary>
+  );
 }
