@@ -215,6 +215,12 @@ function WritingResultCard({ data }: { data: ResultData }) {
 
   return (
     <div className={`mt-6 rounded-lg border-2 ${bgColor} p-6 md:p-8`}>
+      <div className="flex items-center gap-2 mb-2">
+        <CheckCircle2 className="h-5 w-5 text-ok" />
+        <p className="text-xs uppercase tracking-wider text-ok font-semibold">
+          Writing corregido
+        </p>
+      </div>
       <p className="text-xs uppercase tracking-wider text-muted font-medium mb-2">
         Nota del Writing
       </p>
@@ -229,6 +235,10 @@ function WritingResultCard({ data }: { data: ResultData }) {
         <span className="text-muted"> de </span>
         <span className="font-semibold">{data.writing_max_score}</span>
         <span className="text-muted"> puntos según rúbrica Cambridge</span>
+      </p>
+      <p className="text-xs text-muted mt-3 italic">
+        Cada tarea de Writing muestra su corrección detallada más abajo,
+        junto a tu respuesta.
       </p>
     </div>
   );

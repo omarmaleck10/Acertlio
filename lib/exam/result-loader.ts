@@ -285,7 +285,7 @@ export async function loadResultData(
     const { data: wcData } = await admin
       .from("writing_corrections")
       .select(
-        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, status, corrected_by_ai, suggestions"
+        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions"
       )
       .eq("attempt_id", attempt.id)
       .in("question_id", writingQuestionIds);
@@ -293,11 +293,27 @@ export async function loadResultData(
     (wcData ?? []).forEach((wc) => {
       // Consideramos "corregido" si:
       //   · Es humano y status='completed'
-      //   · O es IA (corrected_by_ai=true, la IA no usa status)
+      //   · O es IA (corrected_by_ai=true)
+      //   · O tiene puntuaciones válidas (defensivo por si status/corrected_at
+      //     no se guardaron por algún fallo previo)
       const isCorrectedByAI = Boolean(
         (wc as unknown as Record<string, unknown>).corrected_by_ai
       );
-      const isCompleted = isCorrectedByAI || wc.status === "completed";
+      const hasValidScores =
+        wc.total_score != null &&
+        wc.content_score != null &&
+        wc.communicative_score != null;
+      const isCompleted =
+        isCorrectedByAI || wc.status === "completed" || hasValidScores;
+
+      // Usar corrected_at si existe. Si no viene pero está completed,
+      // usar updated_at como fallback (algo pasó al guardar sin timestamp).
+      const wcAny = wc as unknown as Record<string, unknown>;
+      const effectiveCorrectedAt = isCompleted
+        ? ((wc.corrected_at as string | null) ??
+          (wcAny.updated_at as string | null) ??
+          new Date().toISOString())
+        : null;
 
       writingCorrectionByQuestion.set(wc.question_id, {
         content_score: wc.content_score,
@@ -307,7 +323,7 @@ export async function loadResultData(
         total_score: wc.total_score,
         max_score: wc.max_score,
         teacher_notes: wc.feedback, // renombrado para mantener API pública
-        corrected_at: isCompleted ? wc.corrected_at : null,
+        corrected_at: effectiveCorrectedAt,
         corrected_by_ai: isCorrectedByAI,
         suggestions:
           ((wc as unknown as Record<string, unknown>).suggestions as
@@ -350,10 +366,20 @@ export async function loadResultData(
         }
 
         const parsed = parseWritingAnswer(userAnswer?.answer_text ?? null);
-        const status: QuestionResultStatus =
-          wc?.corrected_at ? "correct" : "pending";
 
-        if (!wc?.corrected_at) {
+        const wcHasScores = Boolean(
+          wc &&
+            wc.total_score != null &&
+            wc.content_score != null &&
+            wc.communicative_score != null
+        );
+        const wcCorrected = Boolean(wc?.corrected_at) || wcHasScores;
+
+        const status: QuestionResultStatus = wcCorrected
+          ? "correct"
+          : "pending";
+
+        if (!wcCorrected) {
           partWritingPending += 1;
           writingPending += 1;
         }

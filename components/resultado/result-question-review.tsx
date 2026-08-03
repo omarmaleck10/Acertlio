@@ -172,7 +172,15 @@ function FreeTextReview({ question }: { question: ResultQuestion }) {
 // ─── Writing task review ──────────────────────────────────────────────
 function WritingQuestionReview({ question }: { question: ResultQuestion }) {
   const wc = question.writing_correction;
-  const isCorrected = Boolean(wc?.corrected_at);
+  // Consideramos corregido si tiene fecha de corrección O puntuaciones válidas
+  // (defensivo por si corrected_at no se guardó pero la corrección sí existe).
+  const hasValidScores = Boolean(
+    wc &&
+      wc.total_score != null &&
+      wc.content_score != null &&
+      wc.communicative_score != null
+  );
+  const isCorrected = Boolean(wc?.corrected_at) || hasValidScores;
   const isAI = Boolean(wc?.corrected_by_ai);
 
   return (
