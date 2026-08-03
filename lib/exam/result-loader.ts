@@ -100,6 +100,24 @@ export interface ResultData {
   // Perfil del alumno: si es individual, tiene autocorrección IA.
   // Si es de academia, corrige el profesor.
   is_individual: boolean;
+
+  // Diagnóstico técnico visible en la UI cuando writing está pendiente.
+  // Muestra el estado real de las filas en writing_corrections para
+  // este attempt (sin filtrar por nada).
+  writing_debug: Array<{
+    question_id: string;
+    status: string | null;
+    corrected_by_ai: boolean | null;
+    has_corrected_at: boolean;
+    has_updated_at: boolean;
+    total_score: number | null;
+    content_score: number | null;
+    communicative_score: number | null;
+    organisation_score: number | null;
+    language_score: number | null;
+    feedback_len: number;
+    academy_id_null: boolean;
+  }>;
 }
 
 
@@ -281,16 +299,48 @@ export async function loadResultData(
     }
   >();
 
+  const writingDebug: Array<{
+    question_id: string;
+    status: string | null;
+    corrected_by_ai: boolean | null;
+    has_corrected_at: boolean;
+    has_updated_at: boolean;
+    total_score: number | null;
+    content_score: number | null;
+    communicative_score: number | null;
+    organisation_score: number | null;
+    language_score: number | null;
+    feedback_len: number;
+    academy_id_null: boolean;
+  }> = [];
+
   if (writingQuestionIds.length > 0) {
     const { data: wcData } = await admin
       .from("writing_corrections")
       .select(
-        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions"
+        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
       )
       .eq("attempt_id", attempt.id)
       .in("question_id", writingQuestionIds);
 
     (wcData ?? []).forEach((wc) => {
+      const wcAny = wc as unknown as Record<string, unknown>;
+
+      // Añadir al diagnóstico técnico visible en UI
+      writingDebug.push({
+        question_id: wc.question_id,
+        status: (wc.status as string | null) ?? null,
+        corrected_by_ai: Boolean(wcAny.corrected_by_ai),
+        has_corrected_at: wc.corrected_at != null,
+        has_updated_at: wcAny.updated_at != null,
+        total_score: wc.total_score,
+        content_score: wc.content_score,
+        communicative_score: wc.communicative_score,
+        organisation_score: wc.organisation_score,
+        language_score: wc.language_score,
+        feedback_len: typeof wc.feedback === "string" ? wc.feedback.length : 0,
+        academy_id_null: wcAny.academy_id == null,
+      });
       // Consideramos "corregido" si:
       //   · Es humano y status='completed'
       //   · O es IA (corrected_by_ai=true)
@@ -308,7 +358,6 @@ export async function loadResultData(
 
       // Usar corrected_at si existe. Si no viene pero está completed,
       // usar updated_at como fallback (algo pasó al guardar sin timestamp).
-      const wcAny = wc as unknown as Record<string, unknown>;
       const effectiveCorrectedAt = isCompleted
         ? ((wc.corrected_at as string | null) ??
           (wcAny.updated_at as string | null) ??
@@ -538,5 +587,6 @@ export async function loadResultData(
       (studentProfile as unknown as Record<string, unknown> | null)
         ?.is_individual
     ),
+    writing_debug: writingDebug,
   };
 }

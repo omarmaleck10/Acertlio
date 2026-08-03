@@ -192,6 +192,82 @@ function WritingResultCard({ data }: { data: ResultData }) {
               examId={data.exam_id}
               isIndividual={data.is_individual}
             />
+
+            {/* Diagnóstico técnico visible: qué hay realmente en la BBDD.
+                Sirve para saber por qué la corrección no aparece. */}
+            {data.writing_debug && data.writing_debug.length > 0 && (
+              <details className="mt-4 text-xs text-muted">
+                <summary className="cursor-pointer font-medium">
+                  Diagnóstico técnico (writing_corrections en BBDD)
+                </summary>
+                <div className="mt-3 space-y-3 font-mono">
+                  <p className="text-ink">
+                    Filas encontradas: <strong>{data.writing_debug.length}</strong>
+                  </p>
+                  {data.writing_debug.map((d, i) => (
+                    <div
+                      key={i}
+                      className="rounded border border-rule bg-white p-3 space-y-0.5"
+                    >
+                      <p className="text-ink font-semibold">Fila #{i + 1}</p>
+                      <p>question_id: <code className="text-[10px]">{d.question_id.slice(0, 8)}…</code></p>
+                      <p>
+                        status: <strong className={
+                          d.status === "completed" ? "text-ok" : "text-saffron"
+                        }>{d.status ?? "(null)"}</strong>
+                      </p>
+                      <p>
+                        corrected_by_ai: <strong>{String(d.corrected_by_ai)}</strong>
+                      </p>
+                      <p>
+                        has_corrected_at: <strong className={
+                          d.has_corrected_at ? "text-ok" : "text-error"
+                        }>{String(d.has_corrected_at)}</strong>
+                      </p>
+                      <p>
+                        has_updated_at: <strong>{String(d.has_updated_at)}</strong>
+                      </p>
+                      <p>total_score: <strong>{d.total_score ?? "null"}</strong> / max 20</p>
+                      <p>
+                        content/comm/org/lang:{" "}
+                        <strong>
+                          {d.content_score ?? "null"}/
+                          {d.communicative_score ?? "null"}/
+                          {d.organisation_score ?? "null"}/
+                          {d.language_score ?? "null"}
+                        </strong>
+                      </p>
+                      <p>feedback (chars): <strong>{d.feedback_len}</strong></p>
+                      <p>
+                        academy_id: <strong className={
+                          d.academy_id_null ? "text-saffron" : "text-ok"
+                        }>{d.academy_id_null ? "NULL (individual)" : "presente"}</strong>
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-ink mt-3 leading-relaxed">
+                    <strong>Cómo interpretar:</strong>{" "}
+                    Si las filas tienen puntuaciones (total_score, content_score, etc.)
+                    <strong> no-null</strong> y feedback con caracteres, la corrección
+                    está OK pero algo bloquea el render. Si están todas en <code>null</code>,
+                    la IA no llegó a corregir realmente y solo se marcó como intentado.
+                    Mándame captura de esto.
+                  </p>
+                </div>
+              </details>
+            )}
+
+            {data.writing_debug && data.writing_debug.length === 0 && (
+              <details className="mt-4 text-xs text-muted">
+                <summary className="cursor-pointer font-medium">
+                  Diagnóstico técnico
+                </summary>
+                <p className="mt-2 text-error">
+                  ❌ No hay filas de writing_corrections en la BBDD para este
+                  intento. La IA no llegó a guardar nada.
+                </p>
+              </details>
+            )}
           </div>
         </div>
       </div>
