@@ -32,6 +32,7 @@ export interface AICorrectionParams {
   attemptId: string;
   questionId: string;
   studentId: string;
+  academyId?: string | null; // null OK para alumnos individuales
   input: WritingCorrectionInput;
   triggeredBy?: "auto_submit" | "fallback_academy" | "retry";
 }
@@ -55,7 +56,14 @@ export async function correctWritingWithAI(
   params: AICorrectionParams
 ): Promise<WritingAIResult> {
   const admin = createAdminClient();
-  const { attemptId, questionId, studentId, input, triggeredBy = "auto_submit" } = params;
+  const {
+    attemptId,
+    questionId,
+    studentId,
+    academyId = null,
+    input,
+    triggeredBy = "auto_submit",
+  } = params;
 
   // Rate limit (solo se aplica a triggers manuales del alumno, no al
   // auto_submit ni al fallback academia)
@@ -137,25 +145,39 @@ export async function correctWritingWithAI(
       .eq("id", aiCorrectionId);
 
     // ─── Guardar en writing_corrections ────────────────────
-    await admin.from("writing_corrections").upsert(
-      {
-        attempt_id: attemptId,
-        question_id: questionId,
-        student_id: studentId,
-        content_score: contentScore,
-        communicative_score: communicativeScore,
-        organisation_score: organisationScore,
-        language_score: languageScore,
-        total_score: totalScore,
-        feedback: parsed.feedback ?? "",
-        corrected_by: null, // null = IA, no humano
-        corrected_by_ai: true,
-        ai_correction_id: aiCorrectionId,
-        suggestions: parsed.suggestions ?? [],
-        corrected_at: new Date().toISOString(),
-      },
-      { onConflict: "attempt_id,question_id" }
-    );
+    const { error: wcError } = await admin
+      .from("writing_corrections")
+      .upsert(
+        {
+          attempt_id: attemptId,
+          question_id: questionId,
+          student_id: studentId,
+          academy_id: academyId, // null OK para individuales
+          content_score: contentScore,
+          communicative_score: communicativeScore,
+          organisation_score: organisationScore,
+          language_score: languageScore,
+          total_score: totalScore,
+          feedback: parsed.feedback ?? "",
+          corrected_by_ai: true,
+          ai_correction_id: aiCorrectionId,
+          suggestions: parsed.suggestions ?? [],
+          status: "completed",
+          corrected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "attempt_id,question_id" }
+      );
+
+    if (wcError) {
+      console.error(
+        `[AI correction] Failed to save writing_corrections for q=${questionId}:`,
+        wcError
+      );
+      throw new Error(
+        `No se pudo guardar la corrección en writing_corrections: ${wcError.message}`
+      );
+    }
 
     return {
       content_score: contentScore,

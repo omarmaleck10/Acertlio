@@ -17,10 +17,10 @@ export async function triggerAICorrectionsForAttempt(
   let skipped = 0;
   let errors = 0;
 
-  // Cargar attempt + exam + student
+  // Cargar attempt + exam + student + academy
   const { data: attempt } = await admin
     .from("attempts")
-    .select("id, exam_id, student_id, exams(id, level)")
+    .select("id, exam_id, student_id, academy_id, exams(id, level)")
     .eq("id", attemptId)
     .maybeSingle();
 
@@ -108,25 +108,37 @@ export async function triggerAICorrectionsForAttempt(
     const answerText = answerByQuestion.get(q.id) ?? "";
     if (!answerText.trim()) {
       // Alumno no respondió → registrar corrección con 0s sin llamar a la IA
-      await admin.from("writing_corrections").upsert(
-        {
-          attempt_id: attemptId,
-          question_id: q.id,
-          student_id: attempt.student_id,
-          content_score: 0,
-          communicative_score: 0,
-          organisation_score: 0,
-          language_score: 0,
-          total_score: 0,
-          feedback:
-            "No se detectó respuesta. Recuerda escribir tu texto antes de enviar el examen.",
-          corrected_by_ai: true,
-          corrected_at: new Date().toISOString(),
-          suggestions: [],
-        },
-        { onConflict: "attempt_id,question_id" }
-      );
-      corrected += 1;
+      const { error: upsertErr } = await admin
+        .from("writing_corrections")
+        .upsert(
+          {
+            attempt_id: attemptId,
+            question_id: q.id,
+            student_id: attempt.student_id,
+            academy_id: attempt.academy_id, // null OK para individuales
+            content_score: 0,
+            communicative_score: 0,
+            organisation_score: 0,
+            language_score: 0,
+            total_score: 0,
+            feedback:
+              "No se detectó respuesta. Recuerda escribir tu texto antes de enviar el examen.",
+            corrected_by_ai: true,
+            status: "completed",
+            corrected_at: new Date().toISOString(),
+            suggestions: [],
+          },
+          { onConflict: "attempt_id,question_id" }
+        );
+      if (upsertErr) {
+        console.error(
+          `[AI trigger] Upsert (empty answer) failed for q=${q.id}:`,
+          upsertErr
+        );
+        errors += 1;
+      } else {
+        corrected += 1;
+      }
       continue;
     }
 
@@ -148,6 +160,7 @@ export async function triggerAICorrectionsForAttempt(
         attemptId,
         questionId: q.id,
         studentId: attempt.student_id,
+        academyId: attempt.academy_id, // null OK para individuales
         input: {
           cambridgeLevel,
           partNumber: part?.part_number ?? 1,
