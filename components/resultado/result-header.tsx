@@ -258,14 +258,120 @@ function WritingResultCard({ data }: { data: ResultData }) {
             )}
 
             {data.writing_debug && data.writing_debug.length === 0 && (
-              <details className="mt-4 text-xs text-muted">
+              <details className="mt-4 text-xs text-muted" open>
                 <summary className="cursor-pointer font-medium">
-                  Diagnóstico técnico
+                  Diagnóstico técnico completo
                 </summary>
-                <p className="mt-2 text-error">
-                  ❌ No hay filas de writing_corrections en la BBDD para este
-                  intento. La IA no llegó a guardar nada.
-                </p>
+                <div className="mt-3 space-y-3 font-mono">
+                  <p className="text-error font-semibold">
+                    ❌ Sin filas de writing_corrections para este attempt.
+                  </p>
+
+                  {data.writing_debug_meta && (
+                    <div className="rounded border border-rule bg-white p-3 space-y-1.5">
+                      <p className="text-ink font-semibold">Meta del loader</p>
+                      <p>
+                        attempt_id usado:{" "}
+                        <code className="text-[10px]">
+                          {data.writing_debug_meta.attempt_id_used}
+                        </code>
+                      </p>
+                      <p>
+                        writing_questions encontradas:{" "}
+                        <strong>
+                          {data.writing_debug_meta.writing_questions_count}
+                        </strong>
+                      </p>
+                      {data.writing_debug_meta.writing_questions_first_ids
+                        .length > 0 && (
+                        <div>
+                          <p>Primeras question_ids:</p>
+                          {data.writing_debug_meta.writing_questions_first_ids.map(
+                            (id, i) => (
+                              <p key={i} className="ml-3">
+                                · <code className="text-[10px]">{id}</code>
+                              </p>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {data.writing_debug_meta &&
+                    data.writing_debug_meta.corrections_scanned_all.length >
+                      0 && (
+                      <div className="rounded border border-saffron/40 bg-saffron/5 p-3 space-y-1.5">
+                        <p className="text-ink font-semibold">
+                          🔍 Correcciones existentes para este alumno
+                          (últimas 20, sin filtrar por attempt)
+                        </p>
+                        <p className="text-muted mb-2">
+                          Si el attempt_id de estas filas es distinto al
+                          &quot;attempt_id usado&quot; de arriba, la IA guardó
+                          en otro attempt → bug de mismatch.
+                        </p>
+                        {data.writing_debug_meta.corrections_scanned_all.map(
+                          (c, i) => {
+                            const attemptMatches =
+                              data.writing_debug_meta &&
+                              c.attempt_id_short ===
+                                data.writing_debug_meta.attempt_id_used.slice(
+                                  0,
+                                  8
+                                ) + "…";
+                            return (
+                              <div
+                                key={i}
+                                className={`rounded p-2 border ${
+                                  attemptMatches
+                                    ? "border-ok bg-ok/5"
+                                    : "border-error/30 bg-white"
+                                }`}
+                              >
+                                <p>
+                                  attempt:{" "}
+                                  <code className="text-[10px]">
+                                    {c.attempt_id_short}
+                                  </code>
+                                  {attemptMatches ? " ✓" : " ✗"}
+                                </p>
+                                <p>
+                                  question:{" "}
+                                  <code className="text-[10px]">
+                                    {c.question_id_short}
+                                  </code>
+                                </p>
+                                <p>
+                                  status: <strong>{c.status ?? "null"}</strong>{" "}
+                                  · IA:{" "}
+                                  <strong>{String(c.corrected_by_ai)}</strong>{" "}
+                                  · scores:{" "}
+                                  <strong
+                                    className={
+                                      c.has_scores ? "text-ok" : "text-error"
+                                    }
+                                  >
+                                    {String(c.has_scores)}
+                                  </strong>
+                                </p>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    )}
+
+                  {data.writing_debug_meta &&
+                    data.writing_debug_meta.corrections_scanned_all.length ===
+                      0 && (
+                      <p className="text-error">
+                        ❌ No hay NINGUNA corrección de este alumno en toda la
+                        BBDD. La IA nunca ha guardado nada, ni siquiera con
+                        otro attempt_id.
+                      </p>
+                    )}
+                </div>
               </details>
             )}
           </div>

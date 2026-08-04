@@ -118,6 +118,20 @@ export interface ResultData {
     feedback_len: number;
     academy_id_null: boolean;
   }>;
+
+  // Meta-diagnóstico para identificar mismatches entre attempts
+  writing_debug_meta: {
+    attempt_id_used: string;
+    writing_questions_count: number;
+    writing_questions_first_ids: string[]; // primeros 3
+    corrections_scanned_all: Array<{
+      attempt_id_short: string;
+      question_id_short: string;
+      status: string | null;
+      corrected_by_ai: boolean;
+      has_scores: boolean;
+    }>;
+  };
 }
 
 
@@ -382,7 +396,43 @@ export async function loadResultData(
     });
   }
 
-  // 12. Construir estructura + calcular aciertos
+  // ─── META-DIAGNÓSTICO ───────────────────────────────────────────────
+  // Búsqueda GLOBAL de correcciones del alumno sin filtrar por attempt_id.
+  // Sirve para detectar si la IA guardó con un attempt_id distinto al
+  // que el loader está usando (bug de mismatch de attempts).
+  const correctionsScannedAll: Array<{
+    attempt_id_short: string;
+    question_id_short: string;
+    status: string | null;
+    corrected_by_ai: boolean;
+    has_scores: boolean;
+  }> = [];
+
+  const { data: wcAllForStudent } = await admin
+    .from("writing_corrections")
+    .select("attempt_id, question_id, status, corrected_by_ai, total_score")
+    .eq("student_id", studentId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  (wcAllForStudent ?? []).forEach((wc) => {
+    correctionsScannedAll.push({
+      attempt_id_short: String(wc.attempt_id).slice(0, 8) + "…",
+      question_id_short: String(wc.question_id).slice(0, 8) + "…",
+      status: (wc.status as string | null) ?? null,
+      corrected_by_ai: Boolean(
+        (wc as unknown as Record<string, unknown>).corrected_by_ai
+      ),
+      has_scores: wc.total_score != null,
+    });
+  });
+
+  const writingDebugMeta = {
+    attempt_id_used: attempt.id,
+    writing_questions_count: writingQuestionIds.length,
+    writing_questions_first_ids: writingQuestionIds.slice(0, 3),
+    corrections_scanned_all: correctionsScannedAll,
+  };
   let totalCorrect = 0;
   let totalGradeable = 0;
   let writingPending = 0;
@@ -588,5 +638,6 @@ export async function loadResultData(
         ?.is_individual
     ),
     writing_debug: writingDebug,
+    writing_debug_meta: writingDebugMeta,
   };
 }
