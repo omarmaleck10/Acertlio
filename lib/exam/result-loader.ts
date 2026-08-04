@@ -124,6 +124,8 @@ export interface ResultData {
     attempt_id_used: string;
     writing_questions_count: number;
     writing_questions_first_ids: string[]; // primeros 3
+    wc_raw_count: number; // filas por attempt_id sin filtrar por question_id
+    wc_filtered_count: number; // filas tras filtrar por question_id
     corrections_scanned_all: Array<{
       attempt_id_short: string;
       question_id_short: string;
@@ -328,16 +330,43 @@ export async function loadResultData(
     academy_id_null: boolean;
   }> = [];
 
+  let wcRawCount = 0;
+  let wcFilteredCount = 0;
+
   if (writingQuestionIds.length > 0) {
-    const { data: wcData } = await admin
+    // ROBUSTEZ: query SOLO por attempt_id, luego filtramos por question_id
+    // en JS. El uso combinado de .eq() + .in() con múltiples IDs a veces
+    // falla en PostgREST/Supabase por el encoding de la URL o timeout.
+    // Query en 2 pasos es más robusto.
+    const writingIdSet = new Set(writingQuestionIds);
+
+    const { data: wcRaw, error: wcError } = await admin
       .from("writing_corrections")
       .select(
         "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
       )
-      .eq("attempt_id", attempt.id)
-      .in("question_id", writingQuestionIds);
+      .eq("attempt_id", attempt.id);
 
-    (wcData ?? []).forEach((wc) => {
+    if (wcError) {
+      console.error(
+        "[result-loader] Failed to load writing_corrections:",
+        wcError
+      );
+    }
+
+    // Filtrar en JS por question_id
+    const wcData = (wcRaw ?? []).filter((wc) =>
+      writingIdSet.has(wc.question_id as string)
+    );
+
+    wcRawCount = wcRaw?.length ?? 0;
+    wcFilteredCount = wcData.length;
+
+    console.log(
+      `[result-loader] attempt=${attempt.id} raw=${wcRaw?.length ?? 0} filtered=${wcData.length} writingIds=${writingQuestionIds.length}`
+    );
+
+    wcData.forEach((wc) => {
       const wcAny = wc as unknown as Record<string, unknown>;
 
       // Añadir al diagnóstico técnico visible en UI
@@ -431,6 +460,8 @@ export async function loadResultData(
     attempt_id_used: attempt.id,
     writing_questions_count: writingQuestionIds.length,
     writing_questions_first_ids: writingQuestionIds.slice(0, 3),
+    wc_raw_count: wcRawCount,
+    wc_filtered_count: wcFilteredCount,
     corrections_scanned_all: correctionsScannedAll,
   };
   let totalCorrect = 0;

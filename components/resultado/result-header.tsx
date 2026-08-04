@@ -282,10 +282,34 @@ function WritingResultCard({ data }: { data: ResultData }) {
                           {data.writing_debug_meta.writing_questions_count}
                         </strong>
                       </p>
+                      <p>
+                        Filas en BBDD para este attempt (raw):{" "}
+                        <strong
+                          className={
+                            data.writing_debug_meta.wc_raw_count > 0
+                              ? "text-ok"
+                              : "text-error"
+                          }
+                        >
+                          {data.writing_debug_meta.wc_raw_count}
+                        </strong>
+                      </p>
+                      <p>
+                        Filas tras filtrar por question_id:{" "}
+                        <strong
+                          className={
+                            data.writing_debug_meta.wc_filtered_count > 0
+                              ? "text-ok"
+                              : "text-error"
+                          }
+                        >
+                          {data.writing_debug_meta.wc_filtered_count}
+                        </strong>
+                      </p>
                       {data.writing_debug_meta.writing_questions_first_ids
                         .length > 0 && (
                         <div>
-                          <p>Primeras question_ids:</p>
+                          <p>Primeras question_ids esperadas:</p>
                           {data.writing_debug_meta.writing_questions_first_ids.map(
                             (id, i) => (
                               <p key={i} className="ml-3">
