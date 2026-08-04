@@ -10,12 +10,18 @@ import { correctWritingWithAI } from "./writing-correction";
  */
 export async function triggerAICorrectionsForAttempt(
   attemptId: string
-): Promise<{ corrected: number; skipped: number; errors: number }> {
+): Promise<{
+  corrected: number;
+  skipped: number;
+  errors: number;
+  lastError?: string;
+}> {
   const admin = createAdminClient();
 
   let corrected = 0;
   let skipped = 0;
   let errors = 0;
+  let lastError: string | undefined;
 
   // Cargar attempt + exam + student + academy
   const { data: attempt } = await admin
@@ -24,7 +30,7 @@ export async function triggerAICorrectionsForAttempt(
     .eq("id", attemptId)
     .maybeSingle();
 
-  if (!attempt) return { corrected: 0, skipped: 0, errors: 0 };
+  if (!attempt) return { corrected: 0, skipped: 0, errors: 0, lastError: "Attempt no encontrado en BBDD." };
 
   const examData = Array.isArray(attempt.exams)
     ? attempt.exams[0]
@@ -37,7 +43,7 @@ export async function triggerAICorrectionsForAttempt(
     .select("id, part_number, skill")
     .eq("exam_id", attempt.exam_id);
 
-  if (!parts) return { corrected: 0, skipped: 0, errors: 0 };
+  if (!parts) return { corrected: 0, skipped: 0, errors: 0, lastError: "No se encontraron partes del examen." };
 
   const partIds = parts.map((p) => p.id);
   const partById = new Map(parts.map((p) => [p.id, p]));
@@ -47,7 +53,7 @@ export async function triggerAICorrectionsForAttempt(
     .select("id, part_id, question_type, stem, context, correct_answer")
     .in("part_id", partIds);
 
-  if (!questions) return { corrected: 0, skipped: 0, errors: 0 };
+  if (!questions) return { corrected: 0, skipped: 0, errors: 0, lastError: "No se encontraron preguntas del examen." };
 
   // Filtrar solo las preguntas de tipo Writing (open_response, essay, letter, etc.)
   // IMPORTANTE: los mocks A2-C2 cargados en 015-030 usan question_type
@@ -70,7 +76,12 @@ export async function triggerAICorrectionsForAttempt(
   );
 
   if (writingQuestions.length === 0) {
-    return { corrected: 0, skipped: 0, errors: 0 };
+    return {
+      corrected: 0,
+      skipped: 0,
+      errors: 0,
+      lastError: "No hay preguntas de Writing en este examen.",
+    };
   }
 
   // Cargar las respuestas del alumno
@@ -135,6 +146,7 @@ export async function triggerAICorrectionsForAttempt(
           `[AI trigger] Upsert (empty answer) failed for q=${q.id}:`,
           upsertErr
         );
+        lastError = `Upsert falló (respuesta vacía): ${upsertErr.message}`;
         errors += 1;
       } else {
         corrected += 1;
@@ -175,9 +187,10 @@ export async function triggerAICorrectionsForAttempt(
       corrected += 1;
     } catch (e) {
       console.error(`AI correction failed for question ${q.id}:`, e);
+      lastError = e instanceof Error ? e.message : String(e);
       errors += 1;
     }
   }
 
-  return { corrected, skipped, errors };
+  return { corrected, skipped, errors, lastError };
 }

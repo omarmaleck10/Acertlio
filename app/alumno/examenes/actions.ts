@@ -699,7 +699,13 @@ export async function saveNotesAction(input: {
  */
 export async function retryAICorrectionAction(
   examId: string
-): Promise<{ error?: string; ok?: boolean; corrected?: number }> {
+): Promise<{
+  error?: string;
+  ok?: boolean;
+  corrected?: number;
+  errors?: number;
+  lastError?: string;
+}> {
   const user = await getCurrentUser();
   if (!user) return { error: "No hay sesión de usuario." };
 
@@ -743,12 +749,16 @@ export async function retryAICorrectionAction(
     console.log(`[AI retry] attempt=${attempt.id} result:`, res);
 
     revalidatePath(`/alumno/examenes/${examId}`);
-    return { ok: true, corrected: res.corrected };
+    return {
+      ok: true,
+      corrected: res.corrected,
+      errors: res.errors,
+      lastError: res.lastError,
+    };
   } catch (e) {
     console.error("[AI retry] Failed:", e);
     return {
-      error:
-        "No se pudo lanzar la corrección. Vuelve a intentarlo en unos minutos.",
+      error: `Excepción no controlada: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
 }
