@@ -334,37 +334,66 @@ export async function loadResultData(
   let wcFilteredCount = 0;
 
   if (writingQuestionIds.length > 0) {
-    // ROBUSTEZ: query SOLO por attempt_id, luego filtramos por question_id
-    // en JS. El uso combinado de .eq() + .in() con múltiples IDs a veces
-    // falla en PostgREST/Supabase por el encoding de la URL o timeout.
-    // Query en 2 pasos es más robusto.
+    // ⚠️ BUG CRÍTICO ENCONTRADO
+    // La query original con `.eq("attempt_id").select(<14 columnas>)`
+    // devuelve 0 filas aunque las filas existen. La causa parece estar
+    // en el SELECT largo (posiblemente en `suggestions` JSONB o un
+    // trigger silencioso al leer).
+    //
+    // Fix: cargar todas las columnas en 2 queries separadas, ambas con
+    // SELECT ligero. Luego combinar en JS.
     const writingIdSet = new Set(writingQuestionIds);
 
-    const { data: wcRaw, error: wcError } = await admin
+    // Query 1: columnas básicas + puntuaciones (SIN suggestions ni academy_id)
+    const { data: wcCore, error: wcCoreErr } = await admin
       .from("writing_corrections")
       .select(
-        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
+        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, corrected_at, updated_at, status, corrected_by_ai"
       )
       .eq("attempt_id", attempt.id);
 
-    if (wcError) {
-      console.error(
-        "[result-loader] Failed to load writing_corrections:",
-        wcError
-      );
+    if (wcCoreErr) {
+      console.error("[result-loader] wcCore error:", wcCoreErr);
     }
 
-    // Filtrar en JS por question_id
-    const wcData = (wcRaw ?? []).filter((wc) =>
+    // Query 2: campos secundarios (feedback + suggestions + academy_id)
+    // Si esta falla, el flujo sigue con los datos de wcCore.
+    const { data: wcExtra, error: wcExtraErr } = await admin
+      .from("writing_corrections")
+      .select("question_id, feedback, suggestions, academy_id")
+      .eq("attempt_id", attempt.id);
+
+    if (wcExtraErr) {
+      console.error("[result-loader] wcExtra error:", wcExtraErr);
+    }
+
+    // Combinar por question_id
+    const extraByQuestion = new Map<string, Record<string, unknown>>();
+    (wcExtra ?? []).forEach((e) => {
+      extraByQuestion.set(e.question_id as string, {
+        feedback: e.feedback,
+        suggestions: (e as unknown as Record<string, unknown>).suggestions,
+        academy_id: (e as unknown as Record<string, unknown>).academy_id,
+      });
+    });
+
+    // Filtrar por question_id relevante
+    const wcDataRaw = (wcCore ?? []).filter((wc) =>
       writingIdSet.has(wc.question_id as string)
     );
 
-    wcRawCount = wcRaw?.length ?? 0;
-    wcFilteredCount = wcData.length;
+    wcRawCount = wcCore?.length ?? 0;
+    wcFilteredCount = wcDataRaw.length;
 
     console.log(
-      `[result-loader] attempt=${attempt.id} raw=${wcRaw?.length ?? 0} filtered=${wcData.length} writingIds=${writingQuestionIds.length}`
+      `[result-loader] attempt=${attempt.id} core=${wcCore?.length ?? 0} extra=${wcExtra?.length ?? 0} filtered=${wcDataRaw.length} writingIds=${writingQuestionIds.length}`
     );
+
+    // Merge de core + extra
+    const wcData = wcDataRaw.map((core) => {
+      const extra = extraByQuestion.get(core.question_id as string) ?? {};
+      return { ...core, ...extra } as typeof core & Record<string, unknown>;
+    });
 
     wcData.forEach((wc) => {
       const wcAny = wc as unknown as Record<string, unknown>;
@@ -414,7 +443,7 @@ export async function loadResultData(
         language_score: wc.language_score,
         total_score: wc.total_score,
         max_score: wc.max_score,
-        teacher_notes: wc.feedback, // renombrado para mantener API pública
+        teacher_notes: (wc.feedback as string | null) ?? null, // renombrado para mantener API pública
         corrected_at: effectiveCorrectedAt,
         corrected_by_ai: isCorrectedByAI,
         suggestions:
