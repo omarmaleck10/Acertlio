@@ -334,66 +334,58 @@ export async function loadResultData(
   let wcFilteredCount = 0;
 
   if (writingQuestionIds.length > 0) {
-    // ⚠️ BUG CRÍTICO ENCONTRADO
-    // La query original con `.eq("attempt_id").select(<14 columnas>)`
-    // devuelve 0 filas aunque las filas existen. La causa parece estar
-    // en el SELECT largo (posiblemente en `suggestions` JSONB o un
-    // trigger silencioso al leer).
+    // ⚠️ SEGUNDA ITERACIÓN DEL BUG
+    // La query filtrada por .eq("attempt_id") sigue devolviendo 0
+    // aunque las filas existen y la query global por .eq("student_id")
+    // SÍ las encuentra con el mismo attempt_id.
     //
-    // Fix: cargar todas las columnas en 2 queries separadas, ambas con
-    // SELECT ligero. Luego combinar en JS.
+    // Es un bug misterioso del filtro .eq("attempt_id") + SELECT.
+    //
+    // Solución BRUTE FORCE: usar SOLO la query global (que sí funciona)
+    // y filtrar TODO en JavaScript.
     const writingIdSet = new Set(writingQuestionIds);
 
-    // Query 1: columnas básicas + puntuaciones (SIN suggestions ni academy_id)
-    const { data: wcCore, error: wcCoreErr } = await admin
+    // Query única: por student_id (que sí funciona en producción)
+    // con SELECT amplio. Filtramos por attempt_id + question_id en JS.
+    const { data: wcAll, error: wcErr } = await admin
       .from("writing_corrections")
       .select(
-        "question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, corrected_at, updated_at, status, corrected_by_ai"
+        "attempt_id, question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
       )
-      .eq("attempt_id", attempt.id);
+      .eq("student_id", studentId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
 
-    if (wcCoreErr) {
-      console.error("[result-loader] wcCore error:", wcCoreErr);
+    if (wcErr) {
+      console.error(
+        "[result-loader] Failed to load writing_corrections (global):",
+        wcErr
+      );
     }
 
-    // Query 2: campos secundarios (feedback + suggestions + academy_id)
-    // Si esta falla, el flujo sigue con los datos de wcCore.
-    const { data: wcExtra, error: wcExtraErr } = await admin
-      .from("writing_corrections")
-      .select("question_id, feedback, suggestions, academy_id")
-      .eq("attempt_id", attempt.id);
-
-    if (wcExtraErr) {
-      console.error("[result-loader] wcExtra error:", wcExtraErr);
-    }
-
-    // Combinar por question_id
-    const extraByQuestion = new Map<string, Record<string, unknown>>();
-    (wcExtra ?? []).forEach((e) => {
-      extraByQuestion.set(e.question_id as string, {
-        feedback: e.feedback,
-        suggestions: (e as unknown as Record<string, unknown>).suggestions,
-        academy_id: (e as unknown as Record<string, unknown>).academy_id,
-      });
-    });
-
-    // Filtrar por question_id relevante
-    const wcDataRaw = (wcCore ?? []).filter((wc) =>
-      writingIdSet.has(wc.question_id as string)
+    // Filtrar en JS
+    const wcData = (wcAll ?? []).filter(
+      (wc) =>
+        wc.attempt_id === attempt.id &&
+        writingIdSet.has(wc.question_id as string)
     );
 
-    wcRawCount = wcCore?.length ?? 0;
-    wcFilteredCount = wcDataRaw.length;
+    wcRawCount = wcAll?.length ?? 0;
+    wcFilteredCount = wcData.length;
 
     console.log(
-      `[result-loader] attempt=${attempt.id} core=${wcCore?.length ?? 0} extra=${wcExtra?.length ?? 0} filtered=${wcDataRaw.length} writingIds=${writingQuestionIds.length}`
+      `[result-loader] attempt=${attempt.id} student=${studentId} allForStudent=${wcAll?.length ?? 0} filteredForAttemptAndQ=${wcData.length} writingIds=${writingQuestionIds.length}`
     );
 
-    // Merge de core + extra
-    const wcData = wcDataRaw.map((core) => {
-      const extra = extraByQuestion.get(core.question_id as string) ?? {};
-      return { ...core, ...extra } as typeof core & Record<string, unknown>;
-    });
+    // Log extra: cuántas del student pertenecen a este attempt
+    const forThisAttempt = (wcAll ?? []).filter(
+      (wc) => wc.attempt_id === attempt.id
+    );
+    console.log(
+      `[result-loader] forThisAttempt=${forThisAttempt.length}, attempt_ids_seen=${Array.from(
+        new Set((wcAll ?? []).map((w) => w.attempt_id))
+      ).join(",")}`
+    );
 
     wcData.forEach((wc) => {
       const wcAny = wc as unknown as Record<string, unknown>;
