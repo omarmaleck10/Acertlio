@@ -334,19 +334,19 @@ export async function loadResultData(
   let wcFilteredCount = 0;
 
   if (writingQuestionIds.length > 0) {
-    // ⚠️ SEGUNDA ITERACIÓN DEL BUG
-    // La query filtrada por .eq("attempt_id") sigue devolviendo 0
-    // aunque las filas existen y la query global por .eq("student_id")
-    // SÍ las encuentra con el mismo attempt_id.
+    // ═════════════════════════════════════════════════════════════
+    // CARGA WRITING CORRECTIONS — versión definitiva
+    // ═════════════════════════════════════════════════════════════
     //
-    // Es un bug misterioso del filtro .eq("attempt_id") + SELECT.
+    // Estrategia probada: query GLOBAL por student_id (que funciona
+    // consistentemente) y filtro TODO en JavaScript por attempt_id +
+    // question_id. Evitamos el bug misterioso de .eq("attempt_id")
+    // que devolvía 0 en producción aunque las filas existieran.
     //
-    // Solución BRUTE FORCE: usar SOLO la query global (que sí funciona)
-    // y filtrar TODO en JavaScript.
+    // Con limit(200) tenemos cobertura holgada (200 correcciones
+    // por alumno = ~100 mocks).
     const writingIdSet = new Set(writingQuestionIds);
 
-    // Query única: por student_id (que sí funciona en producción)
-    // con SELECT amplio. Filtramos por attempt_id + question_id en JS.
     const { data: wcAll, error: wcErr } = await admin
       .from("writing_corrections")
       .select(
@@ -354,16 +354,15 @@ export async function loadResultData(
       )
       .eq("student_id", studentId)
       .order("updated_at", { ascending: false })
-      .limit(100);
+      .limit(200);
 
     if (wcErr) {
       console.error(
-        "[result-loader] Failed to load writing_corrections (global):",
+        "[result-loader] Fallo query writing_corrections:",
         wcErr
       );
     }
 
-    // Filtrar en JS
     const wcData = (wcAll ?? []).filter(
       (wc) =>
         wc.attempt_id === attempt.id &&
@@ -374,23 +373,13 @@ export async function loadResultData(
     wcFilteredCount = wcData.length;
 
     console.log(
-      `[result-loader] attempt=${attempt.id} student=${studentId} allForStudent=${wcAll?.length ?? 0} filteredForAttemptAndQ=${wcData.length} writingIds=${writingQuestionIds.length}`
-    );
-
-    // Log extra: cuántas del student pertenecen a este attempt
-    const forThisAttempt = (wcAll ?? []).filter(
-      (wc) => wc.attempt_id === attempt.id
-    );
-    console.log(
-      `[result-loader] forThisAttempt=${forThisAttempt.length}, attempt_ids_seen=${Array.from(
-        new Set((wcAll ?? []).map((w) => w.attempt_id))
-      ).join(",")}`
+      `[result-loader] attempt=${attempt.id.slice(0, 8)} allForStudent=${wcAll?.length ?? 0} filteredForAttemptAndQ=${wcData.length}`
     );
 
     wcData.forEach((wc) => {
       const wcAny = wc as unknown as Record<string, unknown>;
 
-      // Añadir al diagnóstico técnico visible en UI
+      // Diagnóstico técnico
       writingDebug.push({
         question_id: wc.question_id,
         status: (wc.status as string | null) ?? null,
@@ -405,14 +394,9 @@ export async function loadResultData(
         feedback_len: typeof wc.feedback === "string" ? wc.feedback.length : 0,
         academy_id_null: wcAny.academy_id == null,
       });
-      // Consideramos "corregido" si:
-      //   · Es humano y status='completed'
-      //   · O es IA (corrected_by_ai=true)
-      //   · O tiene puntuaciones válidas (defensivo por si status/corrected_at
-      //     no se guardaron por algún fallo previo)
-      const isCorrectedByAI = Boolean(
-        (wc as unknown as Record<string, unknown>).corrected_by_ai
-      );
+
+      // Determinar si está corregido (criterio flexible)
+      const isCorrectedByAI = Boolean(wcAny.corrected_by_ai);
       const hasValidScores =
         wc.total_score != null &&
         wc.content_score != null &&
@@ -420,8 +404,7 @@ export async function loadResultData(
       const isCompleted =
         isCorrectedByAI || wc.status === "completed" || hasValidScores;
 
-      // Usar corrected_at si existe. Si no viene pero está completed,
-      // usar updated_at como fallback (algo pasó al guardar sin timestamp).
+      // Timestamp efectivo (corrected_at o updated_at o now)
       const effectiveCorrectedAt = isCompleted
         ? ((wc.corrected_at as string | null) ??
           (wcAny.updated_at as string | null) ??
@@ -435,11 +418,11 @@ export async function loadResultData(
         language_score: wc.language_score,
         total_score: wc.total_score,
         max_score: wc.max_score,
-        teacher_notes: (wc.feedback as string | null) ?? null, // renombrado para mantener API pública
+        teacher_notes: (wc.feedback as string | null) ?? null,
         corrected_at: effectiveCorrectedAt,
         corrected_by_ai: isCorrectedByAI,
         suggestions:
-          ((wc as unknown as Record<string, unknown>).suggestions as
+          (wcAny.suggestions as
             | Array<{ type: string; text: string; example?: string | null }>
             | null) ?? null,
       });

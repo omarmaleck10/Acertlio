@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { correctWritingWithAI } from "@/lib/ai/writing-correction";
+import { correctAndSaveWriting } from "@/lib/ai/writing-correction";
 
 /**
  * Cron job: encuentra Writings de alumnos de academia que llevan más de
@@ -181,10 +181,11 @@ export async function GET(request: NextRequest) {
         const taskType = (context.task_type as string) ?? null;
 
         try {
-          await correctWritingWithAI({
+          const res = await correctAndSaveWriting({
             attemptId: attempt.id,
             questionId: q.id,
             studentId: attempt.student_id,
+            academyId: attempt.academy_id ?? null,
             input: {
               cambridgeLevel: level,
               partNumber: partById.get(q.part_id) ?? 1,
@@ -194,9 +195,17 @@ export async function GET(request: NextRequest) {
               wordCountTarget:
                 wordMin && wordMax ? { min: wordMin, max: wordMax } : null,
             },
-            triggeredBy: "fallback_academy",
+            triggeredBy: "fallback",
           });
-          results.corrected += 1;
+          if (res.ok) {
+            results.corrected += 1;
+          } else {
+            results.errors += 1;
+            console.error(
+              `[cron ai-fallback] q=${q.id} falló:`,
+              res.error
+            );
+          }
         } catch (e) {
           console.error(
             `Fallback correction failed for ${q.id}:`,
