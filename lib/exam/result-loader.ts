@@ -350,7 +350,7 @@ export async function loadResultData(
     const { data: wcAll, error: wcErr } = await admin
       .from("writing_corrections")
       .select(
-        "attempt_id, question_id, content_score, communicative_score, organisation_score, language_score, total_score, max_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
+        "attempt_id, question_id, content_score, communicative_score, organisation_score, language_score, total_score, feedback, corrected_at, updated_at, status, corrected_by_ai, suggestions, academy_id"
       )
       .eq("student_id", studentId)
       .order("updated_at", { ascending: false })
@@ -417,7 +417,7 @@ export async function loadResultData(
         organisation_score: wc.organisation_score,
         language_score: wc.language_score,
         total_score: wc.total_score,
-        max_score: wc.max_score,
+        max_score: 20, // Rúbrica Cambridge: 4 criterios x 5 puntos
         teacher_notes: (wc.feedback as string | null) ?? null,
         corrected_at: effectiveCorrectedAt,
         corrected_by_ai: isCorrectedByAI,

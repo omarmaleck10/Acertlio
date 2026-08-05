@@ -363,7 +363,6 @@ async function saveWritingCorrection(
     organisation_score: params.organisationScore,
     language_score: params.languageScore,
     total_score: params.totalScore,
-    max_score: MAX_TOTAL_SCORE,
     feedback: params.feedback,
     suggestions: params.suggestions,
     corrected_by_ai: true,
