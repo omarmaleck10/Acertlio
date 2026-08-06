@@ -6,7 +6,8 @@ const nav = [
   { label: "Producto", href: "/#producto" },
   { label: "Precios", href: "/precios" },
   { label: "Para academias", href: "/academias" },
-  { label: "Para alumnos", href: "/alumnos" },
+  { label: "Corrección IA", href: "/correccion-writing-ia" },
+  { label: "Blog", href: "/blog" },
   { label: "Contacto", href: "/contacto" },
 ];
 
@@ -17,12 +18,12 @@ export function MarketingHeader() {
         <Link href="/" className="flex items-center" aria-label="Inicio Acertlio">
           <Logo />
         </Link>
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-5 lg:gap-7">
           {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm text-muted hover:text-ink transition-colors"
+              className="text-sm text-muted hover:text-ink transition-colors whitespace-nowrap"
             >
               {item.label}
             </Link>

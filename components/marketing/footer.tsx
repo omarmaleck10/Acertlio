@@ -8,6 +8,16 @@ const cols = [
       { label: "Cómo funciona", href: "/#producto" },
       { label: "Precios", href: "/precios" },
       { label: "Para academias", href: "/academias" },
+      { label: "Corrección Writing IA", href: "/correccion-writing-ia" },
+    ],
+  },
+  {
+    title: "Recursos",
+    items: [
+      { label: "Blog", href: "/blog" },
+      { label: "Examen por ordenador", href: "/examen-cambridge-computer-based" },
+      { label: "Preparación B2 First", href: "/preparacion-b2-first-online" },
+      { label: "Preparación C1 Advanced", href: "/preparacion-c1-advanced-online" },
     ],
   },
   {
@@ -30,11 +40,12 @@ export function MarketingFooter() {
   return (
     <footer className="border-t border-rule bg-paper">
       <div className="max-w-site mx-auto px-6 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div className="col-span-2 md:col-span-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+          <div className="col-span-2 md:col-span-3 lg:col-span-1">
             <Logo />
             <p className="mt-3 text-sm text-muted max-w-xs">
-              Simulacros Cambridge Computer-Based para academias de inglés.
+              Simulacros Cambridge Computer-Based con corrección IA del
+              Writing. Para alumnos y academias.
             </p>
           </div>
           {cols.map((col) => (
