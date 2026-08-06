@@ -27,6 +27,16 @@ const PUBLIC_PATHS = [
   "/legal/privacidad",
   "/legal/cookies",
   "/login",
+  // ─── Blog y sus posts ───
+  "/blog",
+  // ─── Landings SEO ───
+  "/correccion-writing-ia",
+  "/examen-cambridge-computer-based",
+  "/preparacion-a2-key-online",
+  "/preparacion-b1-preliminary-online",
+  "/preparacion-b2-first-online",
+  "/preparacion-c1-advanced-online",
+  "/preparacion-c2-proficiency-online",
 ];
 
 /**

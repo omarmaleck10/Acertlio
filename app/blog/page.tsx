@@ -35,13 +35,11 @@ function formatDate(iso: string): string {
 }
 
 export default function BlogIndexPage() {
+  // Ordenar todos los posts por fecha desc (más recientes primero)
   const posts = [...BLOG_POSTS].sort(
     (a, b) =>
       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
-
-  const featured = posts.find((p) => p.featured) ?? posts[0];
-  const rest = posts.filter((p) => p.slug !== featured?.slug);
 
   return (
     <>
@@ -67,78 +65,50 @@ export default function BlogIndexPage() {
           </div>
         </section>
 
-        {/* Featured post */}
-        {featured && (
-          <section className="border-b border-rule bg-paper">
-            <div className="max-w-site mx-auto px-6 py-16">
-              <p className="text-xs uppercase tracking-wider text-muted mb-6 font-medium">
-                Destacado
+        {/* Grid de artículos ordenados por fecha desc */}
+        <section className="border-b border-rule bg-paper">
+          <div className="max-w-site mx-auto px-6 py-16">
+            <div className="flex items-baseline justify-between mb-8">
+              <h2 className="font-semibold text-2xl text-ink tracking-tight">
+                Todos los artículos
+              </h2>
+              <p className="text-sm text-muted">
+                {posts.length} {posts.length === 1 ? "artículo" : "artículos"}
               </p>
-              <Link
-                href={`/blog/${featured.slug}`}
-                className="block group rounded-lg border border-rule bg-white p-8 md:p-10 hover:border-navy transition-colors"
-              >
-                <div className="max-w-3xl">
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {posts.map((post) => (
+                <Link
+                  key={post.slug}
+                  href={`/blog/${post.slug}`}
+                  className="group rounded-lg border border-rule bg-white p-6 hover:border-navy transition-colors flex flex-col"
+                >
                   <p className="text-xs uppercase tracking-wider text-saffron font-medium mb-3">
-                    {featured.category}
+                    {post.category}
                   </p>
-                  <h2 className="font-semibold text-2xl md:text-3xl text-ink tracking-tight leading-tight group-hover:text-navy transition-colors">
-                    {featured.title}
-                  </h2>
-                  <p className="mt-4 text-muted leading-relaxed">
-                    {featured.excerpt}
+                  <h3 className="font-semibold text-lg text-ink leading-snug group-hover:text-navy transition-colors">
+                    {post.title}
+                  </h3>
+                  <p className="mt-3 text-sm text-muted leading-relaxed flex-1">
+                    {post.excerpt}
                   </p>
-                  <div className="mt-6 flex items-center gap-4 text-xs text-muted">
-                    <span>{formatDate(featured.publishedAt)}</span>
+                  <div className="mt-5 flex items-center justify-between text-xs text-muted">
+                    <span>{formatDate(post.publishedAt)}</span>
                     <span className="flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5" />
-                      {featured.readingMinutes} min de lectura
+                      {post.readingMinutes} min
                     </span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 mt-6 text-sm text-navy font-medium group-hover:gap-2.5 transition-all">
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm text-navy font-medium group-hover:gap-2.5 transition-all">
                     Leer artículo
                     <ArrowRight className="h-4 w-4" />
                   </span>
-                </div>
-              </Link>
+                </Link>
+              ))}
             </div>
-          </section>
-        )}
-
-        {/* Rest of posts */}
-        {rest.length > 0 && (
-          <section className="border-b border-rule">
-            <div className="max-w-site mx-auto px-6 py-16">
-              <h2 className="font-semibold text-2xl text-ink tracking-tight mb-8">
-                Todos los artículos
-              </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {rest.map((post) => (
-                  <Link
-                    key={post.slug}
-                    href={`/blog/${post.slug}`}
-                    className="group rounded-lg border border-rule bg-white p-6 hover:border-navy transition-colors"
-                  >
-                    <p className="text-xs uppercase tracking-wider text-saffron font-medium mb-3">
-                      {post.category}
-                    </p>
-                    <h3 className="font-semibold text-lg text-ink leading-snug group-hover:text-navy transition-colors">
-                      {post.title}
-                    </h3>
-                    <p className="mt-3 text-sm text-muted leading-relaxed">
-                      {post.excerpt}
-                    </p>
-                    <div className="mt-4 flex items-center gap-3 text-xs text-muted">
-                      <span>{formatDate(post.publishedAt)}</span>
-                      <span>·</span>
-                      <span>{post.readingMinutes} min</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
+          </div>
+        </section>
 
         {/* CTA final */}
         <section className="bg-navy text-white">
