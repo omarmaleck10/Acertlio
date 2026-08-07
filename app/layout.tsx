@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { siteConfig } from "@/lib/site-config";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -69,6 +70,13 @@ export const metadata: Metadata = {
     apple: "/favicon.svg",
   },
   category: "education",
+  // ─── Verificación Google Search Console ───
+  // El código lo genera Google al añadir la propiedad y se guarda en
+  // la variable NEXT_PUBLIC_GSC_VERIFICATION. Si no está definida,
+  // Next.js simplemente no renderiza el meta tag.
+  verification: {
+    google: process.env.NEXT_PUBLIC_GSC_VERIFICATION,
+  },
 };
 
 export const viewport: Viewport = {
@@ -96,6 +104,7 @@ export default function RootLayout({
       </head>
       <body className="font-sans bg-white text-ink antialiased">
         {children}
+        <GoogleAnalytics />
       </body>
     </html>
   );
