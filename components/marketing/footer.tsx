@@ -62,7 +62,7 @@ export function MarketingFooter() {
           ))}
         </div>
         <div className="mt-10 pt-6 border-t border-rule flex flex-col sm:flex-row justify-between gap-2 text-xs text-muted">
-          <p>© {new Date().getFullYear()} Acertlio. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} Marave Web Studio. Todos los derechos reservados.</p>
           <p>Hecho en España.</p>
         </div>
       </div>
