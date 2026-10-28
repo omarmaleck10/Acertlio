@@ -1,15 +1,10 @@
 /**
  * GET /api/activities/[id]
- *
- * Devuelve una actividad con sus 8 preguntas (SIN las respuestas correctas)
- * y crea un nuevo attempt para el usuario si no tiene uno en curso.
- *
- * El cliente usa esto para renderizar la pantalla de la actividad.
+ * CORREGIDO: usa @supabase/ssr.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(
@@ -18,7 +13,7 @@ export async function GET(
 ) {
   const activityId = params.id;
 
-  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
   } = await supabaseAuth.auth.getUser();
@@ -32,7 +27,6 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 1. Cargar la actividad
   const { data: activity, error: activityError } = await supabase
     .from("activities")
     .select(`
@@ -50,7 +44,6 @@ export async function GET(
     );
   }
 
-  // 2. Cargar las preguntas (OCULTANDO correct_answer, accepted_answers, explanation, is_correct)
   const { data: questions, error: questionsError } = await supabase
     .from("activity_questions")
     .select(`
@@ -69,7 +62,6 @@ export async function GET(
     );
   }
 
-  // Ordenar opciones por display_order
   const safeQuestions = (questions ?? []).map((q: any) => ({
     ...q,
     options: (q.options ?? []).sort(
@@ -77,7 +69,6 @@ export async function GET(
     ),
   }));
 
-  // 3. Buscar o crear attempt en curso para este usuario+actividad
   const { data: openAttempt } = await supabase
     .from("activity_attempts")
     .select("id, started_at, is_complete")

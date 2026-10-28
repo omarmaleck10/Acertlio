@@ -1,24 +1,15 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+/**
+ * Helper para crear un cliente Supabase en server components y route handlers.
+ * Usa @supabase/ssr (la librería actual recomendada por Supabase).
+ *
+ * Si ya tienes un helper equivalente en tu proyecto (por ejemplo
+ * `lib/supabase/server.ts` o `utils/supabase/server.ts`), USA EL TUYO
+ * y cambia los imports en los endpoints para apuntarle.
+ */
+
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-/**
- * Cliente de Supabase para Server Components, Route Handlers y Server Actions.
- *
- * Usa la clave anon pero corre en el servidor. La diferencia con el cliente
- * de navegador es que este lee la cookie de sesión desde el request, así
- * el usuario se identifica correctamente en cada petición.
- *
- * IMPORTANTE: sólo se puede llamar desde código que corre en el servidor
- * (Server Components, Route Handlers, Server Actions). NO desde Client Components.
- *
- * Uso típico:
- *   import { createClient } from "@/lib/supabase/server";
- *   export default async function Page() {
- *     const supabase = createClient();
- *     const { data: { user } } = await supabase.auth.getUser();
- *     ...
- *   }
- */
 export function createClient() {
   const cookieStore = cookies();
 
@@ -27,17 +18,21 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll();
+        get(name: string) {
+          return cookieStore.get(name)?.value;
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+        set(name: string, value: string, options: any) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
+            cookieStore.set({ name, value, ...options });
           } catch {
-            // El método `setAll` fue llamado desde un Server Component.
-            // Se puede ignorar si hay un middleware refrescando la sesión.
+            // Set desde un Server Component falla; es esperado.
+          }
+        },
+        remove(name: string, options: any) {
+          try {
+            cookieStore.set({ name, value: "", ...options });
+          } catch {
+            // Igual que arriba.
           }
         },
       },

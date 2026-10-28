@@ -1,26 +1,14 @@
 /**
  * GET /api/activities/recommendations
- *
- * Devuelve actividades recomendadas para el alumno.
- * Casos de uso:
- *   1. Post-mock: ?level=B2&weak_part_slug=b2-reading-part-5 → recomienda de esa parte
- *   2. Catálogo: ?level=B2 → recomienda las menos practicadas del nivel
- *   3. Por parte: ?level=B2&weak_part_id=12 → recomienda de esa parte por id
- *
- * Query params:
- *   - level: nivel objetivo (si no se pasa, se lee del perfil)
- *   - weak_part_slug | weak_part_id: parte floja detectada tras un mock
- *   - mock_attempt_id: opcional, para trazabilidad en el attempt siguiente
- *   - limit: nº máximo de actividades (default 3)
+ * CORREGIDO: usa @supabase/ssr.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(req: NextRequest) {
-  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
   } = await supabaseAuth.auth.getUser();
@@ -57,7 +45,6 @@ export async function GET(req: NextRequest) {
   const weakPartSlug = sp.get("weak_part_slug");
   const weakPartId = sp.get("weak_part_id");
 
-  // Caso 1 y 3: hay una parte floja identificada → recomendar actividades de esa parte
   if (weakPartSlug || weakPartId) {
     let examPartId: number | null = null;
 
@@ -112,7 +99,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Caso 2: sin parte floja → recomendar actividades que no haya hecho aún
   const { data: completedAttempts } = await supabase
     .from("activity_attempts")
     .select("activity_id")

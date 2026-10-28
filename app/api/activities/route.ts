@@ -1,22 +1,14 @@
 /**
  * GET /api/activities
- *
- * Lista actividades publicadas, filtradas según el nivel del alumno
- * (si está autenticado y tiene `english_level` o `cambridge_level` en su perfil).
- *
- * Query params:
- *   - level: fuerza un nivel específico (ignora el del perfil)
- *   - skill: filtra por skill (reading, use_of_english, etc.)
- *   - part: filtra por parte (slug, ej: 'b2-uoe-part-4')
+ * CORREGIDO: usa @supabase/ssr.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(req: NextRequest) {
-  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
   } = await supabaseAuth.auth.getUser();
@@ -30,15 +22,12 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Resolver el nivel del alumno desde su perfil o desde query
   const urlLevel = req.nextUrl.searchParams.get("level");
   const urlSkill = req.nextUrl.searchParams.get("skill");
   const urlPartSlug = req.nextUrl.searchParams.get("part");
 
   let level = urlLevel;
   if (!level) {
-    // Intentar leer del perfil del alumno. El campo puede llamarse de varias formas
-    // según el schema. Probamos varias opciones comunes.
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
@@ -52,7 +41,6 @@ export async function GET(req: NextRequest) {
       null;
   }
 
-  // Si no hay nivel declarado, devolver vacío con una pista
   if (!level) {
     return NextResponse.json({
       activities: [],
@@ -61,7 +49,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Construir query
   let query = supabase
     .from("activities")
     .select(`
@@ -89,14 +76,12 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Filtrar por parte si viene por slug
   const filtered = urlPartSlug
     ? (activities ?? []).filter(
         (a: any) => a.exam_part?.slug === urlPartSlug
       )
     : activities ?? [];
 
-  // Añadir si el alumno ya la hizo (último intento completo)
   const { data: completedAttempts } = await supabase
     .from("activity_attempts")
     .select("activity_id, score, total_questions, submitted_at")

@@ -1,14 +1,11 @@
 /**
  * /alumno/actividades/[id]/resultados?attempt=XXX
- *
- * Pantalla de resultados con revisión completa: respuestas correctas,
- * explicaciones y nota global.
+ * CORREGIDO: usa @supabase/ssr.
  */
 
 import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ActivityResults } from "@/components/activities/ActivityResults";
@@ -28,7 +25,7 @@ export default async function ResultadosPage({
   const attemptId = searchParams.attempt;
   if (!attemptId) notFound();
 
-  const supabaseAuth = createServerComponentClient({ cookies });
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
   } = await supabaseAuth.auth.getUser();
@@ -39,7 +36,6 @@ export default async function ResultadosPage({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Cargar attempt completo
   const { data: attempt } = await supabase
     .from("activity_attempts")
     .select("*")
@@ -49,7 +45,6 @@ export default async function ResultadosPage({
 
   if (!attempt || !attempt.is_complete) notFound();
 
-  // Cargar actividad + exam_part
   const { data: activity } = await supabase
     .from("activities")
     .select("*, exam_part:exam_part_catalog(*)")
@@ -58,7 +53,6 @@ export default async function ResultadosPage({
 
   if (!activity) notFound();
 
-  // Cargar preguntas con respuestas correctas y opciones
   const { data: questions } = await supabase
     .from("activity_questions")
     .select(`
@@ -68,7 +62,6 @@ export default async function ResultadosPage({
     .eq("activity_id", params.id)
     .order("question_number", { ascending: true });
 
-  // Cargar respuestas del alumno
   const { data: responses } = await supabase
     .from("activity_responses")
     .select("*")

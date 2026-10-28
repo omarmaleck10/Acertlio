@@ -1,15 +1,10 @@
 /**
  * POST /api/activities/[id]/submit
- *
- * Recibe las respuestas del alumno, las evalúa, guarda cada response con
- * is_correct, calcula el score total, marca el attempt como completado y
- * devuelve el resultado con la revisión completa (incluyendo respuestas
- * correctas y explicaciones).
+ * CORREGIDO: usa @supabase/ssr.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { isAnswerCorrect, gradeFromScore } from "@/lib/activities/scoring";
 
@@ -28,7 +23,7 @@ export async function POST(
 ) {
   const activityId = params.id;
 
-  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
   } = await supabaseAuth.auth.getUser();
@@ -55,7 +50,6 @@ export async function POST(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 1. Verificar que el attempt pertenece al usuario y no está completado
   const { data: attempt, error: attemptError } = await supabase
     .from("activity_attempts")
     .select("id, user_id, activity_id, is_complete, started_at")
@@ -82,7 +76,6 @@ export async function POST(
     );
   }
 
-  // 2. Cargar las preguntas completas (CON correct_answer para evaluar)
   const { data: questions, error: qError } = await supabase
     .from("activity_questions")
     .select("*")
@@ -96,7 +89,6 @@ export async function POST(
     );
   }
 
-  // 3. Evaluar cada respuesta
   const responsesByQ: Record<string, string> = {};
   body.responses.forEach((r) => {
     responsesByQ[r.question_id] = r.user_answer;
@@ -115,8 +107,6 @@ export async function POST(
     };
   });
 
-  // 4. Insertar las responses (reemplazando si ya existían)
-  // Primero borramos las existentes del attempt (por si se reenvía)
   await supabase
     .from("activity_responses")
     .delete()
@@ -134,7 +124,6 @@ export async function POST(
     );
   }
 
-  // 5. Actualizar el attempt con score + marcar completo
   const timeSpent =
     body.time_spent_seconds ??
     Math.max(
@@ -166,6 +155,5 @@ export async function POST(
     total: questions.length,
     percentage: Math.round((score / questions.length) * 100),
     grade: gradeFromScore(score, questions.length),
-    // El cliente redirige a /alumno/actividades/[id]/resultados?attempt=XXX
   });
 }
