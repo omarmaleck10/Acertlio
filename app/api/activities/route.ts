@@ -1,6 +1,8 @@
 /**
  * GET /api/activities
- * CORREGIDO: usa @supabase/ssr.
+ *
+ * CORREGIDO: lee current_level de profiles (que es la columna real de Acertlio),
+ * con fallback a cambridge_level, english_level o level por si cambia.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -34,7 +36,10 @@ export async function GET(req: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
+    // Buscamos la columna de nivel en varios nombres posibles.
+    // En Acertlio es current_level.
     level =
+      profile?.current_level ??
       profile?.cambridge_level ??
       profile?.english_level ??
       profile?.level ??
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       activities: [],
       message:
-        "Añade tu nivel Cambridge a tu perfil para ver actividades recomendadas, o pasa ?level=B2 en la URL.",
+        "Añade tu nivel Cambridge a tu perfil para ver actividades recomendadas.",
     });
   }
 

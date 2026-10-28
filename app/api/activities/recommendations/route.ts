@@ -1,6 +1,7 @@
 /**
  * GET /api/activities/recommendations
- * CORREGIDO: usa @supabase/ssr.
+ *
+ * CORREGIDO: lee current_level de profiles.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
     level =
+      profile?.current_level ??
       profile?.cambridge_level ??
       profile?.english_level ??
       profile?.level ??
