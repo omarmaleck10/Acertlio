@@ -1,0 +1,22 @@
+-- Migración 043 (YA APLICADA en producción el 2026-10-28)
+-- Vistas para medir el piloto de 3 meses con academias Founding Partner.
+--
+-- Esta versión en el repo es REFERENCIA/DOCUMENTACIÓN.
+-- NO la vuelvas a aplicar en SQL Editor: ya está aplicada.
+--
+-- Resumen:
+--  - v_student_progress: evolución temporal del alumno (snapshots por paper)
+--  - v_academy_piloto_metrics: dashboard de métricas por academia:
+--      · total_students, active_students_7d, pct_active_7d
+--      · mocks_started, mocks_completed, avg_mock_percentage
+--      · writings_total, writings_ai_corrected, writings_teacher_reviewed
+--      · ai_corrections_ok, ai_corrections_failed, avg_ai_latency_ms, total_ai_cost_usd
+--      · activity_attempts, activity_completed, avg_activity_percentage
+--  - v_writing_ai_vs_teacher: comparación IA vs revisión profesor (base
+--    para medir acuerdo IA-humano, una de las métricas clave del piloto)
+--
+--  - get_piloto_summary(academy_id): RPC con comprobación de permiso
+--    (solo super_admin o el academy_admin de esa academia)
+--
+-- Para el contenido SQL completo, usa el conector de Supabase o consulta
+-- el historial de migraciones del proyecto.

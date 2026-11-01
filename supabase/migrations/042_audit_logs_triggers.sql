@@ -1,0 +1,27 @@
+-- Migración 042 (YA APLICADA en producción el 2026-10-28)
+-- Observabilidad vía audit_logs: función helper + triggers automáticos
+-- + políticas RLS por rol.
+--
+-- Esta versión en el repo es REFERENCIA/DOCUMENTACIÓN.
+-- NO la vuelvas a aplicar en SQL Editor: ya está aplicada.
+-- Guárdala en tu repo para que el schema esté versionado.
+--
+-- Resumen:
+--  - log_audit_event(action, entity_type, entity_id, user_id, academy_id, metadata)
+--    función helper segura (fire-and-forget: si falla no rompe)
+--
+--  - Triggers:
+--    · profiles.role: 'profile.role_changed'
+--    · invitations: 'invitation.created' / 'invitation.{status}'
+--    · paper_attempts: 'mock.started' / 'mock.completed'
+--    · writing_corrections: 'writing.ai_corrected' / 'writing.corrected' / 'writing.teacher_reviewed'
+--    · activity_attempts: 'activity.completed'
+--    · student_groups: 'group.created' / 'group.deleted'
+--
+--  - RLS:
+--    · super_admin: ve todos los audit_logs
+--    · academy_admin: ve logs de su academia
+--    · usuario: ve sus propios logs
+--
+-- Para el contenido SQL completo, usa el conector de Supabase o consulta
+-- el historial de migraciones del proyecto.
